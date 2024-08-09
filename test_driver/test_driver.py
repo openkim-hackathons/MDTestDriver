@@ -77,7 +77,8 @@ class HeatCapacity(CrystalGenomeTestDriver):
         TDdirectory = os.path.dirname(os.path.realpath(__file__))
         structure_file = os.path.join(TDdirectory, "output/zero_temperature_crystal.lmp")
         atoms_new.write(structure_file, format="lammps-data", masses=True)
-        # Handle cases where kim models expect different structure file formats.
+
+        #Handle cases where kim models expect different structure file formats.
         try:
             run_lammps(self.kim_model_name, 0, temperatures[0], pressure, timestep,
                        number_sampling_timesteps, species, test_file_read=True)
@@ -135,6 +136,7 @@ class HeatCapacity(CrystalGenomeTestDriver):
             reduced_atoms = reduce_and_avg(atoms_new, repeat)
             crystal_genome_designation = self._get_crystal_genome_designation_from_atoms_and_verify_unchanged_symmetry(
                 reduced_atoms, loose_triclinic_and_monoclinic=loose_triclinic_and_monoclinic)
+            self._add_property_instance_and_common_crystal_genome_keys("crystal-structure-npt",write_stress=True,write_temp=True)
 
         c = compute_heat_capacity(temperatures, log_filenames, 2)
 
@@ -149,8 +151,7 @@ class HeatCapacity(CrystalGenomeTestDriver):
         print('####################################')
         print(f'alpha:\t{alpha}')
 
-        # TODO: We should write some coordinate file.
-        self.poscar = None
+        self.poscar = self.atoms.write("log.poscar",format='vasp')
 
         # Write property.
         self._add_property_instance_and_common_crystal_genome_keys(
@@ -193,13 +194,53 @@ class HeatCapacity(CrystalGenomeTestDriver):
 
         self._add_property_instance_and_common_crystal_genome_keys("thermal-expansion-coefficient-npt",
                                                                    write_stress=True, write_temp=True)
+        prototype_label = crystal_genome_designation["prototype_label"]
+        space_group = int(prototype_label.split("_")[2])
+        # alpha11 defined for all space groups
         self._add_key_to_current_property_instance("alpha11", alpha11, "1/K", uncertainty_info={"source-std-uncert-value":alpha11_err})
-        self._add_key_to_current_property_instance("alpha22", alpha22, "1/K", uncertainty_info={"source-std-uncert-value":alpha22_err})
-        self._add_key_to_current_property_instance("alpha33", alpha33, "1/K", uncertainty_info={"source-std-uncert-value":alpha33_err})
-        self._add_key_to_current_property_instance("alpha12", alpha12, "1/K", uncertainty_info={"source-std-uncert-value":alpha12_err})
-        self._add_key_to_current_property_instance("alpha13", alpha13, "1/K", uncertainty_info={"source-std-uncert-value":alpha13_err})
-        self._add_key_to_current_property_instance("alpha23", alpha23, "1/K", uncertainty_info={"source-std-uncert-value":alpha23_err})
-        self._add_key_to_current_property_instance("thermal-expansion-coefficient", alpha_final, "1/K", uncertainty_info={"source-std-uncert-value":alpha_final_err})
+
+        alpha_symmetry_reduced = np.asarray([[alpha11, 0.0, 0.0],
+                                             [0.0, alpha11, 0.0],
+                                             [0.0, 0.0, alpha11 ]])
+        
+        alpha_symmetry_reduced_err = np.asarray([[alpha11_err, 0.0, 0.0],
+                                                [0.0, alpha11_err, 0.0],
+                                                [0.0, 0.0, alpha11_err ]])
+
+        # hexagona, trigonal, tetragonal space groups also compute alpha33
+        if space_group <= 194:
+            self._add_key_to_current_property_instance("alpha33", alpha33, "1/K", uncertainty_info={"source-std-uncert-value":alpha33_err})
+
+            alpha_symmetry_reduced = np.asarray([[alpha11, 0.0, 0.0],
+                                                [0.0, alpha11, 0.0],
+                                                [0.0, 0.0, alpha33 ]])
+            
+            alpha_symmetry_reduced_err = np.asarray([[alpha11_err, 0.0, 0.0],
+                                                    [0.0, alpha11_err, 0.0],
+                                                    [0.0, 0.0, alpha33_err ]])
+        
+        # orthorhombic, also compute alpha22
+        if space_group <= 74:
+            self._add_key_to_current_property_instance("alpha22", alpha22, "1/K", uncertainty_info={"source-std-uncert-value":alpha22_err})
+
+            alpha_symmetry_reduced = np.asarray([[alpha11, 0.0, 0.0],
+                                                [0.0, alpha22, 0.0],
+                                                [0.0, 0.0, alpha33 ]])
+            
+            alpha_symmetry_reduced_err = np.asarray([[alpha11_err, 0.0, 0.0],
+                                                    [0.0, alpha22_err, 0.0],
+                                                    [0.0, 0.0, alpha33_err ]])
+        
+        # monoclinic or triclinic, compute all components
+        if space_group <= 15:
+            self._add_key_to_current_property_instance("alpha12", alpha12, "1/K", uncertainty_info={"source-std-uncert-value":alpha12_err})
+            self._add_key_to_current_property_instance("alpha13", alpha13, "1/K", uncertainty_info={"source-std-uncert-value":alpha13_err})
+            self._add_key_to_current_property_instance("alpha23", alpha23, "1/K", uncertainty_info={"source-std-uncert-value":alpha23_err})
+
+            alpha_symmetry_reduced = alpha_final
+            alpha_symmetry_reduced_err = alpha_final_err
+        self._add_key_to_current_property_instance("thermal-expansion-tensor", alpha_final, "1/K", uncertainty_info={"source-std-uncert-value":alpha_final_err})
+        self._add_key_to_current_property_instance("thermal-expansion-tensor-symmetry-reduced",alpha_symmetry_reduced,"1/K",uncertainty_info={"source-std-uncert-value":alpha_symmetry_reduced_err})
 
         self.write_property_instances_to_file()
 

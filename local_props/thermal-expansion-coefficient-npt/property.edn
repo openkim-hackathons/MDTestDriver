@@ -21,7 +21,7 @@
   "type"          "float"
   "has-unit"      true
   "extent"        []
-  "required"      true
+  "required"      false
   "description"   "the 22 component of the thermal expansion tensor."
 }
 
@@ -29,7 +29,7 @@
   "type"          "float"
   "has-unit"      true
   "extent"        []
-  "required"      true
+  "required"      false
   "description"   "the 33 component of the thermal expansion tensor."
 }
 
@@ -37,7 +37,7 @@
   "type"          "float"
   "has-unit"      true
   "extent"        []
-  "required"      true
+  "required"      false
   "description"   "the 12 component of the thermal expansion tensor."
 }
 
@@ -45,7 +45,7 @@
   "type"          "float"
   "has-unit"      true
   "extent"        []
-  "required"      true
+  "required"      false
   "description"   "the 13 component of the thermal expansion tensor."
 }
 
@@ -53,16 +53,24 @@
   "type"          "float"
   "has-unit"      true
   "extent"        []
-  "required"      true
+  "required"      false
   "description"   "the 23 component of the thermal expansion tensor."
 }
 
-"thermal-expansion-coefficient" {
+"thermal-expansion-tensor" {
     "type"         "float"
     "has-unit"     true
     "extent"       [3,3]
     "required"     true
     "description" "Thermal expansion coefficient in rank-2 tensor form."
+  }
+
+"thermal-expansion-tensor-symmetry-reduced" {
+    "type"         "float"
+    "has-unit"     true
+    "extent"       [3,3]
+    "required"     true
+    "description" "Thermal expansion coefficient in rank-2 tensor form, reduced by constraints imposed by crystal symmetry such that only triclinic and monoclinic crystal structrues report off-diagonal components, orthorhombic structures report alpha11, alpha22, and alpha33, hexagona, trigonal, tetragonal structures enforce that alpha22 = alpha11, and cubic structures enforce that alpha11 = alpha22 = alpha33."
   }
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
