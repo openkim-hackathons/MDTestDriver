@@ -140,7 +140,7 @@ class HeatCapacity(CrystalGenomeTestDriver):
 
         c = compute_heat_capacity(temperatures, log_filenames, 2)
 
-        alpha = compute_alpha(log_filenames, temperatures, crystal_genome_designation["prototype_label"])
+        alpha = compute_alpha(log_filenames, temperatures, self.prototype_label)
         # Print result.
         print('####################################')
         print('# NPT Heat Capacity Results #')
