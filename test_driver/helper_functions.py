@@ -22,6 +22,7 @@ def run_lammps(modelname: str, temperature_index: int, temperature: float, press
     tdamp = timestep * 1000.0
 
     log_filename = f"output/lammps_temperature_{temperature_index}.log"
+    test_log_filename = f"output/lammps_file_format_test_temperature_{temperature_index}.log"
     restart_filename = f"output/final_configuration_temperature_{temperature_index}.restart"
     variables = {
         "modelname": modelname,
@@ -39,10 +40,11 @@ def run_lammps(modelname: str, temperature_index: int, temperature: float, press
     }
     if test_file_read:
         # do a minimal test to see if the model can read the structure file
+        # write to a seperate log file to avoid overwriting data
         command = (
                 "lammps "
                 + " ".join(f"-var {key} '{item}'" for key, item in variables.items())
-                + f" -log {log_filename}"
+                + f" -log {test_log_filename}"
                 + " -in file_read_test.lammps")
         subprocess.run(command, check=True, shell=True)
     else:
@@ -458,10 +460,6 @@ def compute_alpha(log_filenames: List[str], temperatures: List[float], prototype
     xz_errs = []
     yz_errs = []
 
-    # pull out the space group from the prototype label
-    # to use to determine the category of crystal symmetry
-    space_group = int(prototype_label.split("_")[2])
-
     # must match the order of kim_convergence variables in npt.lammps
     convergence_indicies = {"lx": 3, "ly": 4, "lz": 5, "xy": 6, "xz": 7, "yz": 8}
 
@@ -560,14 +558,12 @@ def compute_alpha(log_filenames: List[str], temperatures: List[float], prototype
     cval = c[int(len(c) / 2)]
     alphaval = alpha_angle[int(len(a) / 2)]
     betaval = beta_angle[int(len(a) / 2)]
-    gammaval = gamma_angle[int(len(a) / 2)]
 
     aval_err = a_errs[int(len(a) / 2)]
     bval_err = b_errs[int(len(a) / 2)]
     cval_err = c_errs[int(len(a) / 2)]
     alphaval_err = alpha_angle_errs[int(len(a) / 2)]
     betaval_err = beta_angle_errs[int(len(a) / 2)]
-    gammaval_err = gamma_angle_errs[int(len(a) / 2)]
 
     bslope = {}
     cslope = {}
@@ -637,8 +633,6 @@ def compute_alpha(log_filenames: List[str], temperatures: List[float], prototype
         alpha_angle_slope_err = alpha_angle_slope[f"finite_difference_accuracy_{accuracy}"][1]
         beta_angle_slope_val = beta_angle_slope[f"finite_difference_accuracy_{accuracy}"][0]
         beta_angle_slope_err = beta_angle_slope[f"finite_difference_accuracy_{accuracy}"][1]
-        gamma_angle_slope_val = gamma_angle_slope[f"finite_difference_accuracy_{accuracy}"][0]
-        gamma_angle_slope_err = gamma_angle_slope[f"finite_difference_accuracy_{accuracy}"][1]
         gamma_star_slope_val = gamma_star_prime[f"finite_difference_accuracy_{accuracy}"][0]
         gamma_star_slope_err = gamma_star_prime[f"finite_difference_accuracy_{accuracy}"][1]
 
@@ -684,8 +678,8 @@ def compute_alpha(log_filenames: List[str], temperatures: List[float], prototype
                                         1 / np.sin(np.radians(alphaval))) ** 2) ** 2 * alphaval_err ** 2 +
                                 (1 / np.tan(np.radians(alphaval))) ** 2 * alpha_angle_slope_err ** 2 +
                                 (gamma_star_slope_val * (1 / np.sin(
-                                    np.radians(gamma_star))) ** 2) ** 2 * gamma_star_err ** 2 +
-                                (1 / np.tan(np.radians(gamma_star))) ** 2 * gamma_star_slope_err ** 2)
+                                    gamma_star)) ** 2) ** 2 * gamma_star_err ** 2 +
+                                (1 / np.tan(gamma_star)) ** 2 * gamma_star_slope_err ** 2)
         alpha22[f"finite_difference_accuracy_{accuracy}"][1] = alpha22_err
 
         alpha33_err = np.sqrt((cslope_val / cval ** 2) ** 2 * cval_err ** 2 +
@@ -698,7 +692,7 @@ def compute_alpha(log_filenames: List[str], temperatures: List[float], prototype
                                                              + (beta_angle_slope_val/np.sin(np.radians(betaval))**2)**2 * betaval_err**2
                                                              + (1/np.tan(np.radians(alphaval)))**2 * alpha_angle_slope_err**2
                                                              + (1/np.tan(np.radians(betaval)))**2 * beta_angle_slope_err**2)
-                                                             + ((1/(2*np.sin(np.radians(gamma_star)))) * (aslope_val/aval  - bslope_val/bval - alpha_angle_slope_val/np.tan(np.radians(alphaval)) + beta_angle_slope_val/np.tan(np.radians(betaval))))**2 * gamma_star_err 
+                                                             + ((1/(2*np.sin(gamma_star))) * (aslope_val/aval  - bslope_val/bval - alpha_angle_slope_val/np.tan(np.radians(alphaval)) + beta_angle_slope_val/np.tan(np.radians(betaval))))**2 * gamma_star_err 
                                                              + (1/2)**2 * gamma_star_slope_err**2))
 
         alpha12[f"finite_difference_accuracy_{accuracy}"][1] = alpha12_err
@@ -713,34 +707,19 @@ def compute_alpha(log_filenames: List[str], temperatures: List[float], prototype
             (1 / 2) ** 2 * beta_angle_slope_err ** 2)
         alpha13[f"finite_difference_accuracy_{accuracy}"][1] = alpha13_err
 
-        alpha23_prefactor1 = ((1 / (2 * np.tan(np.radians(gamma_star)) * np.tan(np.radians(betaval)))) + (
-                1 / (2 * np.sin(np.radians(gamma_star)) * np.tan(np.radians(alphaval))))) ** 2
-        alpha23_prefactor2 = ((1 / np.sin(np.radians(gamma_star))) ** 2 * (
-                (1 / (2 * np.tan(np.radians(betaval)))) * (
-                (aslope_val / aval) - (cslope_val / cval)) + (beta_angle_slope_val / 2)) -
-                                (alpha_angle_slope_val + (1 / np.tan(np.radians(alphaval))) * (
-                                        (bslope_val / bval) - (cslope_val / cval))) / (
-                                        np.tan(np.radians(gamma_star)) * np.sin(
-                                    np.radians(gamma_star)))) ** 2
-        alpha23_err = np.sqrt(((aslope_val / aval ** 2) * (1 / (2 * np.tan(np.radians(gamma_star)) * np.tan(
-            np.radians(betaval))))) ** 2 * aval_err ** 2 +
-                                (1 / (2 * aval * np.tan(np.radians(gamma_star)) * np.tan(
-                                    np.radians(betaval)))) ** 2 * aslope_err ** 2 +
-                                (bslope_val / (2 * np.sin(np.radians(gamma_star)) * np.tan(
-                                    np.radians(alphaval)) * bval ** 2)) ** 2 * bval_err ** 2 +
-                                (1 / (2 * np.sin(np.radians(gamma_star)) * np.tan(
-                                    np.radians(alphaval)) * bval)) ** 2 * bslope_err ** 2 +
-                                (cslope_val / cval ** 2) ** 2 * alpha23_prefactor1 * cval_err ** 2 + (
-                                        1 / cval) ** 2 * alpha23_prefactor1 * cslope_err ** 2 +
-                                ((bslope_val / bval) - (cslope_val / cval)) / (
-                                        2 * np.sin(np.radians(gamma_star)) * np.sin(
-                                    np.radians(alphaval)) ** 2) ** 2 * alphaval_err ** 2 +
-                                (1 / (2 * np.sin(np.radians(gamma_star)))) ** 2 * alpha_angle_slope_val ** 2 +
-                                ((aslope_val / aval) - (cslope_val / cval)) / (
-                                        2 * np.tan(np.radians(gamma_star)) * np.sin(
-                                    np.radians(betaval)) ** 2) ** 2 * betaval_err ** 2 +
-                                (1 / (2 * np.tan(np.radians(gamma_star)))) ** 2 * beta_angle_slope_err ** 2 +
-                                alpha23_prefactor2 * gamma_star_err ** 2)
+        alpha23_gamma_star_err = (((aslope_val/aval - cslope_val/cval)/(2*np.tan(np.radians(betaval)))+beta_angle_slope_val/2)/np.sin(gamma_star)**2 +
+                                    ((bslope_val/bval - cslope_val/cval)/(2*np.tan(np.radians(betaval))) - alpha_angle_slope_val/2)/(np.tan(gamma_star)*np.sin(gamma_star)))
+        alpha23_err = np.sqrt((aslope_val/(2*aval**2 * np.tan(gamma_star)*np.tan(np.radians(betaval))))**2 * aval_err**2 +
+                              (1/(2*aval*np.tan(gamma_star)*np.tan(np.radians(betaval))))**2 * aslope_err**2 +
+                              (bslope_val/(2*bval**2*np.sin(gamma_star)*np.tan(np.radians(alphaval))))**2 * bval_err**2 +
+                              (1/(2*bval*np.sin(gamma_star)*np.tan(np.radians(alphaval))))**2 * bslope_err**2 +
+                              ((cslope_val/(2*cval**2))*((1/(np.tan(gamma_star)*np.tan(np.radians(betaval)))) + (1/(np.tan(np.radians(alphaval))*np.sin(gamma_star)))))**2 * cval_err**2 +
+                              ((1/(2*cval))*((1/(np.tan(gamma_star)*np.tan(np.radians(betaval)))) + (1/(np.tan(np.radians(alphaval))*np.sin(gamma_star)))))**2 * cslope_err**2 +
+                              ((bslope_val/bval - cslope_val/cval)* 1/(2*np.sin(np.radians(alphaval))**2 *np.sin(gamma_star)))**2 * alphaval_err**2 +
+                              (1/(2*np.sin(gamma_star)))**2 * alpha_angle_slope_err**2 +
+                              ((aslope_val/aval - cslope_val/cval)* 1/(2*np.sin(np.radians(betaval))**2 *np.tan(gamma_star)))**2 * betaval_err**2 +
+                              (1/(2*np.tan(gamma_star)))**2 * beta_angle_slope_err**2 +
+                              alpha23_gamma_star_err**2 * gamma_star_err**2)
         alpha23[f"finite_difference_accuracy_{accuracy}"][1] = alpha23_err
 
     # enforce tensor symmetries
