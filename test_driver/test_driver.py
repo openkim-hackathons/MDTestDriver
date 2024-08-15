@@ -95,7 +95,7 @@ class HeatCapacity(CrystalGenomeTestDriver):
             wrong_format_error = check_lammps_log_for_wrong_structure_format(log_file)
 
             if wrong_format_error:
-                # write the atom configuration file in the in the 'charge' format some models expect
+                # write the atom configuration file in the 'charge' format some models expect
                 write_lammps_data(structure_file, atoms_new, atom_style="charge", masses=True, units="metal")
                 # try to read the file again, raise any exeptions that might happen
                 run_lammps(self.kim_model_name, 0, temperatures[0], pressure_bar, timestep,
