@@ -5,7 +5,7 @@ import subprocess
 from typing import Optional, Tuple
 from ase.io.lammpsdata import write_lammps_data
 import numpy as np
-from kim_tools import query_crystal_genome_structures
+from kim_tools import get_stoich_reduced_list_from_prototype, query_crystal_genome_structures
 from kim_tools.test_driver import CrystalGenomeTestDriver
 from helper_functions import (check_lammps_log_for_wrong_structure_format, compute_alpha, compute_heat_capacity,
                                get_cell_from_averaged_lammps_dump, get_positions_from_averaged_lammps_dump,
@@ -49,7 +49,7 @@ class HeatCapacity(CrystalGenomeTestDriver):
 
         if max_workers is not None and not max_workers > 0:
             raise RuntimeError("Maximum number of workers has to be bigger than zero.")
-
+        
         # Convert stress to bar for Lammps using metal units.
         ev_angstrom3_to_bar_conversion_factor = 1.602176634e6
         cell_cauchy_stress_bar = [s * ev_angstrom3_to_bar_conversion_factor for s in self.cell_cauchy_stress_eV_angstrom3]
@@ -96,7 +96,7 @@ class HeatCapacity(CrystalGenomeTestDriver):
 
             if wrong_format_error:
                 # write the atom configuration file in the in the 'charge' format some models expect
-                write_lammps_data(structure_file, atoms_new, atom_style="charge", masses=True)
+                write_lammps_data(structure_file, atoms_new, atom_style="charge", masses=True, units="metal")
                 # try to read the file again, raise any exeptions that might happen
                 run_lammps(self.kim_model_name, 0, temperatures[0], pressure_bar, timestep,
                            number_sampling_timesteps, species, test_file_read=True)
@@ -177,10 +177,28 @@ class HeatCapacity(CrystalGenomeTestDriver):
                 middle_temperature_atoms, loose_triclinic_and_monoclinic=loose_triclinic_and_monoclinic)
         self.temperature_K = middle_temperature
         self._add_property_instance_and_common_crystal_genome_keys(
-            "heat-capacity-npt", write_stress=True, write_temp=True)  # last two default to False
+            "heat-capacity-npt", write_stress=True, write_temp=True)
+        assert len(atoms_new) == len(original_atoms) * repeat[0] * repeat[1] * repeat[2]
+        number_atoms = len(atoms_new)
         self._add_key_to_current_property_instance(
-            "constant_pressure_heat_capacity", c[f"finite_difference_accuracy_{max_accuracy}"][0], "eV/Kelvin",
-            uncertainty_info={"source-std-uncert-value": c[f"finite_difference_accuracy_{max_accuracy}"][1]})
+            "constant_pressure_heat_capacity_per_atom", 
+            c[f"finite_difference_accuracy_{max_accuracy}"][0] / number_atoms, 
+            "eV/Kelvin",
+            uncertainty_info={"source-std-uncert-value": c[f"finite_difference_accuracy_{max_accuracy}"][1] / number_atoms})
+        number_atoms_in_formula = sum(get_stoich_reduced_list_from_prototype(self.prototype_label))
+        assert number_atoms % number_atoms_in_formula == 0
+        number_formula = number_atoms // number_atoms_in_formula
+        self._add_key_to_current_property_instance(
+            "constant_pressure_heat_capacity_per_formula", 
+            c[f"finite_difference_accuracy_{max_accuracy}"][0] / number_formula, 
+            "eV/Kelvin",
+            uncertainty_info={"source-std-uncert-value": c[f"finite_difference_accuracy_{max_accuracy}"][1] / number_formula})
+        total_mass_g_per_mol = sum(atoms_new.get_masses())
+        self._add_key_to_current_property_instance(
+            "constant_pressure_specific_heat_capacity", 
+            c[f"finite_difference_accuracy_{max_accuracy}"][0] / total_mass_g_per_mol, 
+            "eV/Kelvin/(g/mol)",
+            uncertainty_info={"source-std-uncert-value": c[f"finite_difference_accuracy_{max_accuracy}"][1] / total_mass_g_per_mol})
 
         alpha11 = alpha[0][0][f"finite_difference_accuracy_{max_accuracy}"][0]
         alpha11_err = alpha[0][0][f"finite_difference_accuracy_{max_accuracy}"][1]
