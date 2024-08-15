@@ -305,9 +305,10 @@ class HeatCapacity(CrystalGenomeTestDriver):
 if __name__ == "__main__":
     # Argument parsing
     parser = argparse.ArgumentParser(description='Pass arguments to the KIM test driver')
-    parser.add_argument('-m', '--model', help='Pass model for test driver to run')
-    parser.add_argument('-s', '--stoichiometry', help='Stoichiometry of structure to test', nargs='+')
-    parser.add_argument('-p', '--prototype', help='Prototype ASE label')
+    parser.add_argument('-m', '--model', help='Pass model for test driver to run', required=True)
+    parser.add_argument('-s', '--stoichiometry', help='Stoichiometry of structure to test', nargs='+',
+                        required=True)
+    parser.add_argument('-p', '--prototype', help='Prototype ASE label', required=True)
     args = parser.parse_args()
 
     # Get arguments
