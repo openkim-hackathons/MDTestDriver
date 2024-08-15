@@ -292,7 +292,9 @@ if __name__ == "__main__":
     list_of_queried_structures = query_crystal_genome_structures(kim_model_name=model_name,
                                                                  stoichiometric_species=['Al'],
                                                                  prototype_label='A_cF4_225_a')
-    for queried_structure in list_of_queried_structures:
-        test_driver(**queried_structure, temperature=293.15, pressure=1.0, temperature_step_fraction=0.01,
-                    number_symmetric_temperature_steps=2, timestep=0.001, number_sampling_timesteps=100,
-                    repeat=(3, 3, 3), loose_triclinic_and_monoclinic=True, max_workers=5)
+    for i, queried_structure in enumerate(list_of_queried_structures):
+        test_driver(**queried_structure, temperature_K=293.15, 
+                    cell_cauchy_stress_eV_angstrom3=[6.241509074460762e-7, 6.241509074460762e-7, 6.241509074460762e-7, 0.0, 0.0, 0.0], 
+                    temperature_step_fraction=0.01, number_symmetric_temperature_steps=2, timestep=0.001, 
+                    number_sampling_timesteps=100, repeat=(3, 3, 3), loose_triclinic_and_monoclinic=True, max_workers=5)
+        test_driver.write_property_instances_to_file(filename=f"output/results_{i}.edn")
