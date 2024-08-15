@@ -61,9 +61,6 @@ class HeatCapacity(CrystalGenomeTestDriver):
         # Create atoms object that will contain the supercell.
         atoms_new = self.atoms.copy()
 
-        # UNCOMMENT THIS TO TEST A TRICLINIC STRUCTURE!
-        # atoms_new = bulk('Ar', 'fcc', a=5.248)
-
         # This is how ASE obtains the species that are written to the initial configuration.
         # These species are passed to kim interactions.
         # See https://wiki.fysik.dtu.dk/ase/_modules/ase/io/lammpsdata.html#write_lammps_data
