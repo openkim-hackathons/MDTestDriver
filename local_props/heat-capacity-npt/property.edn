@@ -4,19 +4,35 @@
   "property-title" "Heat capacity of crystal at NPT"
 
   "property-description" "Heat capacity of a crystal calculated at constant pressure.
-  This is computed from two NPT simulations by finite difference, using kim-convergence
+  This is computed from NPT simulations by finite difference, using kim-convergence
   for convergence verification."
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ; CHANGE THE SECTION BELOW WHEN CREATING NEW PROPERTIES
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-  "constant_pressure_heat_capacity" {
+  "constant_pressure_heat_capacity_per_atom" {
     "type"         "float"
     "has-unit"     true
     "extent"       []
     "required"     true
-    "description" "Constant pressure heat capacity of solid"
+    "description" "Constant pressure heat capacity per atom of solid"
+  }
+
+  "constant_pressure_heat_capacity_per_formula" {
+    "type"         "float"
+    "has-unit"     true
+    "extent"       []
+    "required"     true
+    "description" "Constant pressure heat capacity per formula of solid"
+  }
+
+  "constant_pressure_specific_heat_capacity" {
+    "type"         "float"
+    "has-unit"     true
+    "extent"       []
+    "required"     true
+    "description" "Constant pressure specific heat capacity of solid"
   }
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
