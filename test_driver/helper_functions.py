@@ -55,7 +55,7 @@ def run_lammps(modelname: str, temperature_index: int, temperature: float, press
                 + f" -log {log_filename}"
                 + f" -in {os.path.join(TDdirectory, 'npt.lammps')}")
         
-        # subprocess.run(command, check=True, shell=True, cwd=TDdirectory)
+        subprocess.run(command, check=True, shell=True, cwd=TDdirectory)
 
         plot_property_from_lammps_log(log_filename, ("v_vol_metal", "v_temp_metal", "v_enthalpy_metal"))
 
