@@ -21,9 +21,10 @@ def run_lammps(modelname: str, temperature_index: int, temperature: float, press
     pdamp = timestep * 100.0
     tdamp = timestep * 1000.0
 
-    log_filename = f"output/lammps_temperature_{temperature_index}.log"
-    test_log_filename = f"output/lammps_file_format_test_temperature_{temperature_index}.log"
-    restart_filename = f"output/final_configuration_temperature_{temperature_index}.restart"
+    TDdirectory = os.path.dirname(os.path.realpath(__file__))
+    log_filename = os.path.join(TDdirectory, f"output/lammps_temperature_{temperature_index}.log")
+    test_log_filename = os.path.join(TDdirectory, f"output/lammps_file_format_test_temperature_{temperature_index}.log")
+    restart_filename = os.path.join(TDdirectory, f"output/final_configuration_temperature_{temperature_index}.restart")
     variables = {
         "modelname": modelname,
         "temperature": temperature,
@@ -34,8 +35,8 @@ def run_lammps(modelname: str, temperature_index: int, temperature: float, press
         "timestep": timestep,
         "number_sampling_timesteps": number_sampling_timesteps,
         "species": " ".join(species),
-        "average_position_filename": f"output/average_position_temperature_{temperature_index}.dump.*",
-        "average_cell_filename": f"output/average_cell_temperature_{temperature_index}.dump",
+        "average_position_filename": os.path.join(TDdirectory, f"output/average_position_temperature_{temperature_index}.dump.*"),
+        "average_cell_filename": os.path.join(TDdirectory, f"output/average_cell_temperature_{temperature_index}.dump"),
         "write_restart_filename": restart_filename
     }
     if test_file_read:
@@ -45,16 +46,16 @@ def run_lammps(modelname: str, temperature_index: int, temperature: float, press
                 "lammps "
                 + " ".join(f"-var {key} '{item}'" for key, item in variables.items())
                 + f" -log {test_log_filename}"
-                + " -in file_read_test.lammps")
-        subprocess.run(command, check=True, shell=True)
+                + f" -in {os.path.join(TDdirectory, 'file_read_test.lammps')}")
+        subprocess.run(command, check=True, shell=True, cwd=TDdirectory)
     else:
         command = (
                 "lammps "
                 + " ".join(f"-var {key} '{item}'" for key, item in variables.items())
                 + f" -log {log_filename}"
-                + " -in npt.lammps")
+                + f" -in {os.path.join(TDdirectory, 'npt.lammps')}")
         
-        subprocess.run(command, check=True, shell=True)
+        # subprocess.run(command, check=True, shell=True, cwd=TDdirectory)
 
         plot_property_from_lammps_log(log_filename, ("v_vol_metal", "v_temp_metal", "v_enthalpy_metal"))
 
@@ -62,12 +63,13 @@ def run_lammps(modelname: str, temperature_index: int, temperature: float, press
         # Round to next multiple of 10000.
         equilibration_time = int(ceil(equilibration_time / 10000.0)) * 10000
 
-        full_average_position_file = f"output/average_position_temperature_{temperature_index}.dump.full"
-        compute_average_positions_from_lammps_dump("output", f"average_position_temperature_{temperature_index}.dump",
+        full_average_position_file = os.path.join(TDdirectory, f"output/average_position_temperature_{temperature_index}.dump.full")
+        compute_average_positions_from_lammps_dump(os.path.join(TDdirectory, "output"), 
+                                                   f"average_position_temperature_{temperature_index}.dump",
                                                    full_average_position_file, equilibration_time)
 
-        full_average_cell_file = f"output/average_cell_temperature_{temperature_index}.dump.full"
-        compute_average_cell_from_lammps_dump(f"output/average_cell_temperature_{temperature_index}.dump",
+        full_average_cell_file = os.path.join(TDdirectory, f"output/average_cell_temperature_{temperature_index}.dump.full")
+        compute_average_cell_from_lammps_dump(os.path.join(TDdirectory, f"output/average_cell_temperature_{temperature_index}.dump"),
                                               full_average_cell_file, equilibration_time)
 
         return log_filename, restart_filename, full_average_position_file, full_average_cell_file

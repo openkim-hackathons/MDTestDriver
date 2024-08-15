@@ -7,7 +7,7 @@ from ase.io.lammpsdata import write_lammps_data
 import numpy as np
 from kim_tools import get_stoich_reduced_list_from_prototype, query_crystal_genome_structures
 from kim_tools.test_driver import CrystalGenomeTestDriver
-from helper_functions import (check_lammps_log_for_wrong_structure_format, compute_alpha, compute_heat_capacity,
+from .helper_functions import (check_lammps_log_for_wrong_structure_format, compute_alpha, compute_heat_capacity,
                                get_cell_from_averaged_lammps_dump, get_positions_from_averaged_lammps_dump,
                                reduce_and_avg, run_lammps)
 
@@ -105,9 +105,11 @@ class HeatCapacity(CrystalGenomeTestDriver):
 
         # Choose the correct accuracies file for kim-convergence based on whether the cell is orthogonal or not.
         if atoms_new.get_cell().orthorhombic:
-            shutil.copyfile("accuracies_orthogonal.py", "accuracies.py")
+            shutil.copyfile(os.path.join(TDdirectory, "accuracies_orthogonal.py"), 
+                            os.path.join(TDdirectory, "accuracies.py"))
         else:
-            shutil.copyfile("accuracies_non_orthogonal.py", "accuracies.py")
+            shutil.copyfile(os.path.join(TDdirectory, "accuracies_non_orthogonal.py"), 
+                            os.path.join(TDdirectory, "accuracies.py"))
 
         # Run Lammps simulations in parallel.
         futures = []
@@ -152,7 +154,8 @@ class HeatCapacity(CrystalGenomeTestDriver):
                 reduced_atoms, loose_triclinic_and_monoclinic=loose_triclinic_and_monoclinic)
             self.temperature_K = t
             self._add_property_instance_and_common_crystal_genome_keys("crystal-structure-npt", write_stress=True, write_temp=True)
-            self._add_file_to_current_property_instance("restart-file", f"output/final_configuration_temperature_{t_index}.restart")
+            self._add_file_to_current_property_instance("restart-file", 
+                                                        os.path.join(TDdirectory, f"output/final_configuration_temperature_{t_index}.restart"))
             # Reset to original atoms.
             self._update_crystal_genome_designation_from_atoms(
                 original_atoms, loose_triclinic_and_monoclinic=loose_triclinic_and_monoclinic)
@@ -279,8 +282,6 @@ class HeatCapacity(CrystalGenomeTestDriver):
             alpha_symmetry_reduced_err = alpha_final_err
         self._add_key_to_current_property_instance("thermal-expansion-tensor", alpha_final, "1/K", uncertainty_info={"source-std-uncert-value":alpha_final_err})
         self._add_key_to_current_property_instance("thermal-expansion-tensor-symmetry-reduced",alpha_symmetry_reduced,"1/K",uncertainty_info={"source-std-uncert-value":alpha_symmetry_reduced_err})
-
-        self.write_property_instances_to_file()
 
 
 if __name__ == "__main__":
