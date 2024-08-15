@@ -145,7 +145,7 @@ class HeatCapacity(CrystalGenomeTestDriver):
                 get_positions_from_averaged_lammps_dump(average_position_filename))
             reduced_atoms = reduce_and_avg(atoms_new, repeat)
 
-            if t_index == number_symmetric_temperature_steps + 1:
+            if t_index == number_symmetric_temperature_steps:
                 # Store the atoms of the middle temperature for later because their crystal genome designation 
                 # will be used for the heat-capacity and thermal expansion properties.
                 middle_temperature_atoms = reduced_atoms.copy()
