@@ -285,7 +285,6 @@ class HeatCapacity(CrystalGenomeTestDriver):
 
 
 if __name__ == "__main__":
-    # model_name = "LJ_Shifted_Bernardes_1958MedCutoff_Ar__MO_126566794224_004"
     model_name = "EAM_Dynamo_ErcolessiAdams_1994_Al__MO_123629422045_005"
     subprocess.run(f"kimitems install {model_name}", shell=True, check=True)
     test_driver = HeatCapacity(model_name)
