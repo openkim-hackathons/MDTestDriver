@@ -152,6 +152,7 @@ class HeatCapacity(CrystalGenomeTestDriver):
                 reduced_atoms, loose_triclinic_and_monoclinic=loose_triclinic_and_monoclinic)
             self.temperature_K = t
             self._add_property_instance_and_common_crystal_genome_keys("crystal-structure-npt", write_stress=True, write_temp=True)
+            self._add_file_to_current_property_instance("restart-file", f"output/final_configuration_temperature_{t_index}.restart")
             # Reset to original atoms.
             self._update_crystal_genome_designation_from_atoms(
                 original_atoms, loose_triclinic_and_monoclinic=loose_triclinic_and_monoclinic)
