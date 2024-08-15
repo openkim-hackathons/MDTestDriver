@@ -13,35 +13,26 @@ from helper_functions import (check_lammps_log_for_wrong_structure_format, compu
 
 
 class HeatCapacity(CrystalGenomeTestDriver):
-    def _calculate(self, temperature: float, pressure: float, temperature_step_fraction: float,
-                   number_symmetric_temperature_steps: int, timestep: float, number_sampling_timesteps: int,
-                   repeat: Tuple[int, int, int] = (3, 3, 3), loose_triclinic_and_monoclinic=False,
-                   max_workers: Optional[int] = None, **kwargs) -> None:
+    def _calculate(self, temperature_step_fraction: float, number_symmetric_temperature_steps: int, timestep: float, 
+                   number_sampling_timesteps: int = 100, repeat: Tuple[int, int, int] = (3, 3, 3), 
+                   loose_triclinic_and_monoclinic: bool = False, max_workers: Optional[int] = None, **kwargs) -> None:
         """
         Compute constant-pressure heat capacity from centered finite difference (see Section 3.2 in
         https://pubs.acs.org/doi/10.1021/jp909762j).
-
-        structure_index:
-            KIM tests can loop over multiple structures (i.e. crystals, molecules, etc.).
-            This indicates which is being used for the current calculation.
-
-        temperature:
-            Temperature in Kelvin at which the heat capacity at constant pressure is estimated. Must be strictly greater
-            than zero.
-
-        pressure:
-            Pressure in bar of the NPT simulation for the initial equilibration of the
-            zero-temperature configuration. Must be strictly greater than zero.
-
-        # TODO: Document arguments and add sensible default values.
         """
         # Check arguments.
-        if not temperature > 0.0:
+        if not self.temperature_K > 0.0:
             raise RuntimeError("Temperature has to be larger than zero.")
 
-        if not pressure > 0.0:
-            raise RuntimeError("Pressure has to be larger than zero.")
-
+        if not len(self.cell_cauchy_stress_eV_angstrom3) == 6:
+            raise RuntimeError("Specify all six (x, y, z, xy, xz, yz) entries of the cauchy stress tensor.")
+        
+        if not self.cell_cauchy_stress_eV_angstrom3[0] == self.cell_cauchy_stress_eV_angstrom3[1] == self.cell_cauchy_stress_eV_angstrom3[2]:
+            raise RuntimeError("The diagonal entries of the stress tensor have to be equal so that a hydrostatic pressure is used.")
+        
+        if not self.cell_cauchy_stress_eV_angstrom3[3] == self.cell_cauchy_stress_eV_angstrom3[4] == self.cell_cauchy_stress_eV_angstrom3[5]:
+            raise RuntimeError("The off-diagonal entries of the stress tensor have to be zero so that a hydrostatic pressure is used.")
+        
         if not number_symmetric_temperature_steps > 0:
             raise RuntimeError("Number of symmetric temperature steps has to be bigger than zero.")
 
@@ -49,9 +40,25 @@ class HeatCapacity(CrystalGenomeTestDriver):
             raise RuntimeError(
                 "The given number of symmetric temperature steps and the given temperature-step fraction "
                 "would yield zero or negative temperatures.")
-        # TODO: Check all arguments.
 
-        # Copy original atoms so that their information does not get lost when the new atoms are modified.
+        if not number_sampling_timesteps > 0:
+            raise RuntimeError("Number of timesteps between sampling in Lammps has to be bigger than zero.")
+        
+        if not all(r > 0 for r in repeat):
+            raise RuntimeError("All number of repeats must be bigger than zero.")
+
+        if max_workers is not None and not max_workers > 0:
+            raise RuntimeError("Maximum number of workers has to be bigger than zero.")
+
+        # Convert stress to bar for Lammps using metal units.
+        ev_angstrom3_to_bar_conversion_factor = 1.602176634e6
+        cell_cauchy_stress_bar = [s * ev_angstrom3_to_bar_conversion_factor for s in self.cell_cauchy_stress_eV_angstrom3]
+        pressure_bar = cell_cauchy_stress_bar[0]
+        
+        # Copy original atoms so that their information does not get lost.
+        original_atoms = self.atoms.copy()
+
+        # Create atoms object that will contain the supercell.
         atoms_new = self.atoms.copy()
 
         # UNCOMMENT THIS TO TEST A TRICLINIC STRUCTURE!
@@ -67,8 +74,8 @@ class HeatCapacity(CrystalGenomeTestDriver):
         atoms_new = atoms_new.repeat(repeat)
 
         # Get temperatures that should be simulated.
-        temperature_step = temperature_step_fraction * temperature
-        temperatures = [temperature + i * temperature_step
+        temperature_step = temperature_step_fraction * self.temperature_K
+        temperatures = [self.temperature_K + i * temperature_step
                         for i in range(-number_symmetric_temperature_steps, number_symmetric_temperature_steps + 1)]
         assert len(temperatures) == 2 * number_symmetric_temperature_steps + 1
         assert all(t > 0.0 for t in temperatures)
@@ -78,12 +85,12 @@ class HeatCapacity(CrystalGenomeTestDriver):
         structure_file = os.path.join(TDdirectory, "output/zero_temperature_crystal.lmp")
         atoms_new.write(structure_file, format="lammps-data", masses=True)
 
-        #Handle cases where kim models expect different structure file formats.
+        # Handle cases where kim models expect different structure file formats.
         try:
-            run_lammps(self.kim_model_name, 0, temperatures[0], pressure, timestep,
+            run_lammps(self.kim_model_name, 0, temperatures[0], pressure_bar, timestep,
                        number_sampling_timesteps, species, test_file_read=True)
         except subprocess.CalledProcessError as e:
-            filename = "output/lammps_temperature_0.log"
+            filename = "output/lammps_file_format_test_temperature_{temperature_index}.log"
             log_file = os.path.join(TDdirectory, filename)
             wrong_format_error = check_lammps_log_for_wrong_structure_format(log_file)
 
@@ -91,9 +98,8 @@ class HeatCapacity(CrystalGenomeTestDriver):
                 # write the atom configuration file in the in the 'charge' format some models expect
                 write_lammps_data(structure_file, atoms_new, atom_style="charge", masses=True)
                 # try to read the file again, raise any exeptions that might happen
-                run_lammps(self.kim_model_name, 0, temperatures[0], pressure, timestep,
+                run_lammps(self.kim_model_name, 0, temperatures[0], pressure_bar, timestep,
                            number_sampling_timesteps, species, test_file_read=True)
-
             else:
                 raise e
 
@@ -108,7 +114,7 @@ class HeatCapacity(CrystalGenomeTestDriver):
         with ProcessPoolExecutor(max_workers=max_workers) as executor:
             for i, t in enumerate(temperatures):
                 futures.append(executor.submit(
-                    run_lammps, self.kim_model_name, i, t, pressure, timestep,
+                    run_lammps, self.kim_model_name, i, t, pressure_bar, timestep,
                     number_sampling_timesteps, species))
 
         # If one simulation fails, cancel all runs.
@@ -123,8 +129,9 @@ class HeatCapacity(CrystalGenomeTestDriver):
         # Collect results and check that symmetry is unchanged after all simulations.
         log_filenames = []
         restart_filenames = []
-        index=0
-        for future, t in zip(futures, temperatures):
+        middle_temperature_atoms = None
+        middle_temperature = None
+        for t_index, (future, t) in enumerate(zip(futures, temperatures)):
             assert future.done()
             assert future.exception() is None
             log_filename, restart_filename, average_position_filename, average_cell_filename = future.result()
@@ -135,15 +142,25 @@ class HeatCapacity(CrystalGenomeTestDriver):
             atoms_new.set_scaled_positions(
                 get_positions_from_averaged_lammps_dump(average_position_filename))
             reduced_atoms = reduce_and_avg(atoms_new, repeat)
-            crystal_genome_designation = self._get_crystal_genome_designation_from_atoms_and_verify_unchanged_symmetry(
+
+            if t_index == number_symmetric_temperature_steps + 1:
+                # Store the atoms of the middle temperature for later because their crystal genome designation 
+                # will be used for the heat-capacity and thermal expansion properties.
+                middle_temperature_atoms = reduced_atoms.copy()
+                middle_temperature = t
+            self._update_crystal_genome_designation_from_atoms(
                 reduced_atoms, loose_triclinic_and_monoclinic=loose_triclinic_and_monoclinic)
-            self._add_property_instance_and_common_crystal_genome_keys("crystal-structure-npt",write_stress=True,write_temp=True)
-            self.poscar=reduced_atoms.write(f"output/log_{index}.poscar",format='vasp')
-            index += 1
+            self.temperature_K = t
+            self._add_property_instance_and_common_crystal_genome_keys("crystal-structure-npt", write_stress=True, write_temp=True)
+            # Reset to original atoms.
+            self._update_crystal_genome_designation_from_atoms(
+                original_atoms, loose_triclinic_and_monoclinic=loose_triclinic_and_monoclinic)
+        assert middle_temperature_atoms is not None
+        assert middle_temperature is not None
 
         c = compute_heat_capacity(temperatures, log_filenames, 2)
-
         alpha = compute_alpha(log_filenames, temperatures, self.prototype_label)
+
         # Print result.
         print('####################################')
         print('# NPT Heat Capacity Results #')
@@ -155,13 +172,15 @@ class HeatCapacity(CrystalGenomeTestDriver):
         print(f'alpha:\t{alpha}')
 
         # Write property.
+        max_accuracy = len(temperatures) - 1
+        self._update_crystal_genome_designation_from_atoms(
+                middle_temperature_atoms, loose_triclinic_and_monoclinic=loose_triclinic_and_monoclinic)
+        self.temperature_K = middle_temperature
         self._add_property_instance_and_common_crystal_genome_keys(
             "heat-capacity-npt", write_stress=True, write_temp=True)  # last two default to False
         self._add_key_to_current_property_instance(
-            "constant_pressure_heat_capacity", c["finite_difference_accuracy_2"][0], "eV/Kelvin",
-            uncertainty_info={"source-std-uncert-value": c["finite_difference_accuracy_2"][1]})
-
-        max_accuracy = len(temperatures) - 1
+            "constant_pressure_heat_capacity", c[f"finite_difference_accuracy_{max_accuracy}"][0], "eV/Kelvin",
+            uncertainty_info={"source-std-uncert-value": c[f"finite_difference_accuracy_{max_accuracy}"][1]})
 
         alpha11 = alpha[0][0][f"finite_difference_accuracy_{max_accuracy}"][0]
         alpha11_err = alpha[0][0][f"finite_difference_accuracy_{max_accuracy}"][1]
@@ -195,8 +214,7 @@ class HeatCapacity(CrystalGenomeTestDriver):
 
         self._add_property_instance_and_common_crystal_genome_keys("thermal-expansion-coefficient-npt",
                                                                    write_stress=True, write_temp=True)
-        prototype_label = crystal_genome_designation["prototype_label"]
-        space_group = int(prototype_label.split("_")[2])
+        space_group = int(self.prototype_label.split("_")[2])
         # alpha11 defined for all space groups
         self._add_key_to_current_property_instance("alpha11", alpha11, "1/K", uncertainty_info={"source-std-uncert-value":alpha11_err})
 
