@@ -123,6 +123,7 @@ class HeatCapacity(CrystalGenomeTestDriver):
         # Collect results and check that symmetry is unchanged after all simulations.
         log_filenames = []
         restart_filenames = []
+        index=0
         for future, t in zip(futures, temperatures):
             assert future.done()
             assert future.exception() is None
@@ -137,6 +138,8 @@ class HeatCapacity(CrystalGenomeTestDriver):
             crystal_genome_designation = self._get_crystal_genome_designation_from_atoms_and_verify_unchanged_symmetry(
                 reduced_atoms, loose_triclinic_and_monoclinic=loose_triclinic_and_monoclinic)
             self._add_property_instance_and_common_crystal_genome_keys("crystal-structure-npt",write_stress=True,write_temp=True)
+            self.poscar=reduced_atoms.write(f"output/log_{index}.poscar",format='vasp')
+            index += 1
 
         c = compute_heat_capacity(temperatures, log_filenames, 2)
 
@@ -150,8 +153,6 @@ class HeatCapacity(CrystalGenomeTestDriver):
         print('# NPT Linear Thermal Expansion Tensor Results #')
         print('####################################')
         print(f'alpha:\t{alpha}')
-
-        self.poscar = self.atoms.write("log.poscar",format='vasp')
 
         # Write property.
         self._add_property_instance_and_common_crystal_genome_keys(
