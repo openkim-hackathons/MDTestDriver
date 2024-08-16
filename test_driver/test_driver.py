@@ -4,16 +4,17 @@ import shutil
 import subprocess
 from typing import Optional, Tuple
 from ase.io.lammpsdata import write_lammps_data
+from ast import literal_eval
 import numpy as np
 from kim_tools import query_crystal_genome_structures
 from kim_tools.test_driver import CrystalGenomeTestDriver
-from helper_functions import (check_lammps_log_for_wrong_structure_format, compute_alpha, compute_heat_capacity,
+from .helper_functions import (check_lammps_log_for_wrong_structure_format, compute_alpha, compute_heat_capacity,
                                get_cell_from_averaged_lammps_dump, get_positions_from_averaged_lammps_dump,
                                reduce_and_avg, run_lammps)
 
 
-class HeatCapacity(CrystalGenomeTestDriver):
-    def _calculate(self, temperature: float, pressure: float, temperature_step_fraction: float,
+class TestDriver(CrystalGenomeTestDriver):
+    def _calculate(self, temperature_K: float, pressure: float, temperature_step_fraction: float,
                    number_symmetric_temperature_steps: int, timestep: float, number_sampling_timesteps: int,
                    repeat: Tuple[int, int, int] = (3, 3, 3), loose_triclinic_and_monoclinic=False,
                    max_workers: Optional[int] = None, **kwargs) -> None:
@@ -35,6 +36,7 @@ class HeatCapacity(CrystalGenomeTestDriver):
 
         # TODO: Document arguments and add sensible default values.
         """
+        temperature = temperature_K
         # Check arguments.
         if not temperature > 0.0:
             raise RuntimeError("Temperature has to be larger than zero.")
@@ -53,6 +55,12 @@ class HeatCapacity(CrystalGenomeTestDriver):
 
         # Copy original atoms so that their information does not get lost when the new atoms are modified.
         atoms_new = self.atoms.copy()
+
+        if isinstance(repeat,str):
+            repeat = literal_eval(repeat)
+
+            if not isinstance(repeat,tuple):
+                raise RuntimeError("'repeat' should be a tuple of integers")
 
         # UNCOMMENT THIS TO TEST A TRICLINIC STRUCTURE!
         # atoms_new = bulk('Ar', 'fcc', a=5.248)
@@ -75,7 +83,9 @@ class HeatCapacity(CrystalGenomeTestDriver):
 
         # Write lammps file.
         TDdirectory = os.path.dirname(os.path.realpath(__file__))
-        structure_file = os.path.join(TDdirectory, "output/zero_temperature_crystal.lmp")
+        # structure_file = os.path.join(TDdirectory, "output/zero_temperature_crystal.lmp")
+        structure_file = "output/zero_temperature_crystal.lmp"
+
         atoms_new.write(structure_file, format="lammps-data", masses=True)
 
         #Handle cases where kim models expect different structure file formats.
@@ -96,12 +106,19 @@ class HeatCapacity(CrystalGenomeTestDriver):
 
             else:
                 raise e
+        shutil.copyfile(TDdirectory+"/run_length_control.py","run_length_control.py")
 
         # Choose the correct accuracies file for kim-convergence based on whether the cell is orthogonal or not.
         if atoms_new.get_cell().orthorhombic:
-            shutil.copyfile("accuracies_orthogonal.py", "accuracies.py")
+            shutil.copyfile(TDdirectory+"/accuracies_orthogonal.py", "output/../accuracies.py")
         else:
-            shutil.copyfile("accuracies_non_orthogonal.py", "accuracies.py")
+            shutil.copyfile(TDdirectory+"/accuracies_non_orthogonal.py", "output/../accuracies.py")
+
+        contents=os.listdir(".")
+        with open("output/debug.txt","w") as f:
+            for item in contents:
+                f.write(item)
+
 
         # Run Lammps simulations in parallel.
         futures = []
@@ -250,7 +267,7 @@ if __name__ == "__main__":
     # model_name = "LJ_Shifted_Bernardes_1958MedCutoff_Ar__MO_126566794224_004"
     model_name = "EAM_Dynamo_ErcolessiAdams_1994_Al__MO_123629422045_005"
     subprocess.run(f"kimitems install {model_name}", shell=True, check=True)
-    test_driver = HeatCapacity(model_name)
+    test_driver = TestDriver(model_name)
     list_of_queried_structures = query_crystal_genome_structures(kim_model_name=model_name,
                                                                  stoichiometric_species=['Al'],
                                                                  prototype_label='A_cF4_225_a')

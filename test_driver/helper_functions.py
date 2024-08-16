@@ -21,6 +21,8 @@ def run_lammps(modelname: str, temperature_index: int, temperature: float, press
     pdamp = timestep * 100.0
     tdamp = timestep * 1000.0
 
+    TDdirectory = os.path.dirname(os.path.realpath(__file__))
+
     log_filename = f"output/lammps_temperature_{temperature_index}.log"
     test_log_filename = f"output/lammps_file_format_test_temperature_{temperature_index}.log"
     restart_filename = f"output/final_configuration_temperature_{temperature_index}.restart"
@@ -38,6 +40,9 @@ def run_lammps(modelname: str, temperature_index: int, temperature: float, press
         "average_cell_filename": f"output/average_cell_temperature_{temperature_index}.dump",
         "write_restart_filename": restart_filename
     }
+
+    tempfile = TDdirectory + "/file_read_test.lammps"
+    runfile = TDdirectory + "/npt.lammps"
     if test_file_read:
         # do a minimal test to see if the model can read the structure file
         # write to a seperate log file to avoid overwriting data
@@ -45,14 +50,14 @@ def run_lammps(modelname: str, temperature_index: int, temperature: float, press
                 "lammps "
                 + " ".join(f"-var {key} '{item}'" for key, item in variables.items())
                 + f" -log {test_log_filename}"
-                + " -in file_read_test.lammps")
+                + f" -in {tempfile}")
         subprocess.run(command, check=True, shell=True)
     else:
         command = (
                 "lammps "
                 + " ".join(f"-var {key} '{item}'" for key, item in variables.items())
                 + f" -log {log_filename}"
-                + " -in npt.lammps")
+                + f" -in {runfile}")
         
         subprocess.run(command, check=True, shell=True)
 
