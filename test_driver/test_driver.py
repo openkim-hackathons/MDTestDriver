@@ -1,12 +1,13 @@
 from concurrent.futures import as_completed, ProcessPoolExecutor
 import os
+import argparse
 import shutil
 import subprocess
 from typing import Optional, Tuple
 from ase.io.lammpsdata import write_lammps_data
 from ast import literal_eval
 import numpy as np
-from kim_tools import query_crystal_genome_structures
+from kim_tools import get_stoich_reduced_list_from_prototype, query_crystal_genome_structures
 from kim_tools.test_driver import CrystalGenomeTestDriver
 from .helper_functions import (check_lammps_log_for_wrong_structure_format, compute_alpha, compute_heat_capacity,
                                get_cell_from_averaged_lammps_dump, get_positions_from_averaged_lammps_dump,
@@ -21,28 +22,24 @@ class TestDriver(CrystalGenomeTestDriver):
         """
         Compute constant-pressure heat capacity from centered finite difference (see Section 3.2 in
         https://pubs.acs.org/doi/10.1021/jp909762j).
-
-        structure_index:
-            KIM tests can loop over multiple structures (i.e. crystals, molecules, etc.).
-            This indicates which is being used for the current calculation.
-
-        temperature:
-            Temperature in Kelvin at which the heat capacity at constant pressure is estimated. Must be strictly greater
-            than zero.
-
-        pressure:
-            Pressure in bar of the NPT simulation for the initial equilibration of the
-            zero-temperature configuration. Must be strictly greater than zero.
-
-        # TODO: Document arguments and add sensible default values.
         """
         temperature = temperature_K
         # Check arguments.
-        if not temperature > 0.0:
+        if not self.temperature_K > 0.0:
             raise RuntimeError("Temperature has to be larger than zero.")
 
-        if not pressure > 0.0:
-            raise RuntimeError("Pressure has to be larger than zero.")
+        if not len(self.cell_cauchy_stress_eV_angstrom3) == 6:
+            raise RuntimeError("Specify all six (x, y, z, xy, xz, yz) entries of the cauchy stress tensor.")
+
+        if not (self.cell_cauchy_stress_eV_angstrom3[0] == self.cell_cauchy_stress_eV_angstrom3[1]
+                == self.cell_cauchy_stress_eV_angstrom3[2]):
+            raise RuntimeError("The diagonal entries of the stress tensor have to be equal so that a hydrostatic "
+                               "pressure is used.")
+
+        if not (self.cell_cauchy_stress_eV_angstrom3[3] == self.cell_cauchy_stress_eV_angstrom3[4]
+                == self.cell_cauchy_stress_eV_angstrom3[5]):
+            raise RuntimeError("The off-diagonal entries of the stress tensor have to be zero so that a hydrostatic "
+                               "pressure is used.")
 
         if not number_symmetric_temperature_steps > 0:
             raise RuntimeError("Number of symmetric temperature steps has to be bigger than zero.")
@@ -51,16 +48,33 @@ class TestDriver(CrystalGenomeTestDriver):
             raise RuntimeError(
                 "The given number of symmetric temperature steps and the given temperature-step fraction "
                 "would yield zero or negative temperatures.")
-        # TODO: Check all arguments.
 
-        # Copy original atoms so that their information does not get lost when the new atoms are modified.
-        atoms_new = self.atoms.copy()
-
+        if not number_sampling_timesteps > 0:
+            raise RuntimeError("Number of timesteps between sampling in Lammps has to be bigger than zero.")
+        
         if isinstance(repeat,str):
             repeat = literal_eval(repeat)
 
             if not isinstance(repeat,tuple):
                 raise RuntimeError("'repeat' should be a tuple of integers")
+
+        if not all(r > 0 for r in repeat):
+            raise RuntimeError("All number of repeats must be bigger than zero.")
+
+        if max_workers is not None and not max_workers > 0:
+            raise RuntimeError("Maximum number of workers has to be bigger than zero.")
+
+        # Convert stress to bar for Lammps using metal units.
+        ev_angstrom3_to_bar_conversion_factor = 1.602176634e6
+        cell_cauchy_stress_bar = [s * ev_angstrom3_to_bar_conversion_factor
+                                  for s in self.cell_cauchy_stress_eV_angstrom3]
+        pressure_bar = cell_cauchy_stress_bar[0]
+
+        # Copy original atoms so that their information does not get lost.
+        original_atoms = self.atoms.copy()
+
+        # Create atoms object that will contain the supercell.
+        atoms_new = self.atoms.copy()
 
         # UNCOMMENT THIS TO TEST A TRICLINIC STRUCTURE!
         # atoms_new = bulk('Ar', 'fcc', a=5.248)
@@ -75,8 +89,8 @@ class TestDriver(CrystalGenomeTestDriver):
         atoms_new = atoms_new.repeat(repeat)
 
         # Get temperatures that should be simulated.
-        temperature_step = temperature_step_fraction * temperature
-        temperatures = [temperature + i * temperature_step
+        temperature_step = temperature_step_fraction * self.temperature_K
+        temperatures = [self.temperature_K + i * temperature_step
                         for i in range(-number_symmetric_temperature_steps, number_symmetric_temperature_steps + 1)]
         assert len(temperatures) == 2 * number_symmetric_temperature_steps + 1
         assert all(t > 0.0 for t in temperatures)
@@ -114,18 +128,13 @@ class TestDriver(CrystalGenomeTestDriver):
         else:
             shutil.copyfile(TDdirectory+"/accuracies_non_orthogonal.py", "output/../accuracies.py")
 
-        contents=os.listdir(".")
-        with open("output/debug.txt","w") as f:
-            for item in contents:
-                f.write(item)
-
 
         # Run Lammps simulations in parallel.
         futures = []
         with ProcessPoolExecutor(max_workers=max_workers) as executor:
             for i, t in enumerate(temperatures):
                 futures.append(executor.submit(
-                    run_lammps, self.kim_model_name, i, t, pressure, timestep,
+                    run_lammps, self.kim_model_name, i, t, pressure_bar, timestep,
                     number_sampling_timesteps, species))
 
         # If one simulation fails, cancel all runs.
@@ -140,8 +149,9 @@ class TestDriver(CrystalGenomeTestDriver):
         # Collect results and check that symmetry is unchanged after all simulations.
         log_filenames = []
         restart_filenames = []
-        index=0
-        for future, t in zip(futures, temperatures):
+        middle_temperature_atoms = None
+        middle_temperature = None
+        for t_index, (future, t) in enumerate(zip(futures, temperatures)):
             assert future.done()
             assert future.exception() is None
             log_filename, restart_filename, average_position_filename, average_cell_filename = future.result()
@@ -152,15 +162,28 @@ class TestDriver(CrystalGenomeTestDriver):
             atoms_new.set_scaled_positions(
                 get_positions_from_averaged_lammps_dump(average_position_filename))
             reduced_atoms = reduce_and_avg(atoms_new, repeat)
-            crystal_genome_designation = self._get_crystal_genome_designation_from_atoms_and_verify_unchanged_symmetry(
+
+            if t_index == number_symmetric_temperature_steps:
+                # Store the atoms of the middle temperature for later because their crystal genome designation 
+                # will be used for the heat-capacity and thermal expansion properties.
+                middle_temperature_atoms = reduced_atoms.copy()
+                middle_temperature = t
+            self._update_crystal_genome_designation_from_atoms(
                 reduced_atoms, loose_triclinic_and_monoclinic=loose_triclinic_and_monoclinic)
-            self._add_property_instance_and_common_crystal_genome_keys("crystal-structure-npt",write_stress=True,write_temp=True)
-            self.poscar=reduced_atoms.write(f"output/log_{index}.poscar",format='vasp')
-            index += 1
+            self.temperature_K = t
+            self._add_property_instance_and_common_crystal_genome_keys("crystal-structure-npt", write_stress=True,
+                                                                       write_temp=True)
+            self._add_file_to_current_property_instance("restart-file",
+                                                        f"output/final_configuration_temperature_{t_index}.restart")
+            # Reset to original atoms.
+            self._update_crystal_genome_designation_from_atoms(
+                original_atoms, loose_triclinic_and_monoclinic=loose_triclinic_and_monoclinic)
+        assert middle_temperature_atoms is not None
+        assert middle_temperature is not None
 
         c = compute_heat_capacity(temperatures, log_filenames, 2)
+        alpha = compute_alpha(log_filenames, temperatures, self.prototype_label)
 
-        alpha = compute_alpha(log_filenames, temperatures, crystal_genome_designation["prototype_label"])
         # Print result.
         print('####################################')
         print('# NPT Heat Capacity Results #')
@@ -172,13 +195,36 @@ class TestDriver(CrystalGenomeTestDriver):
         print(f'alpha:\t{alpha}')
 
         # Write property.
-        self._add_property_instance_and_common_crystal_genome_keys(
-            "heat-capacity-npt", write_stress=True, write_temp=True)  # last two default to False
-        self._add_key_to_current_property_instance(
-            "constant_pressure_heat_capacity", c["finite_difference_accuracy_2"][0], "eV/Kelvin",
-            uncertainty_info={"source-std-uncert-value": c["finite_difference_accuracy_2"][1]})
-
         max_accuracy = len(temperatures) - 1
+        self._update_crystal_genome_designation_from_atoms(
+            middle_temperature_atoms, loose_triclinic_and_monoclinic=loose_triclinic_and_monoclinic)
+        self.temperature_K = middle_temperature
+        self._add_property_instance_and_common_crystal_genome_keys(
+            "heat-capacity-npt", write_stress=True, write_temp=True)
+        assert len(atoms_new) == len(original_atoms) * repeat[0] * repeat[1] * repeat[2]
+        number_atoms = len(atoms_new)
+        self._add_key_to_current_property_instance(
+            "constant_pressure_heat_capacity_per_atom",
+            c[f"finite_difference_accuracy_{max_accuracy}"][0] / number_atoms,
+            "eV/Kelvin",
+            uncertainty_info={
+                "source-std-uncert-value": c[f"finite_difference_accuracy_{max_accuracy}"][1] / number_atoms})
+        number_atoms_in_formula = sum(get_stoich_reduced_list_from_prototype(self.prototype_label))
+        assert number_atoms % number_atoms_in_formula == 0
+        number_formula = number_atoms // number_atoms_in_formula
+        self._add_key_to_current_property_instance(
+            "constant_pressure_heat_capacity_per_formula",
+            c[f"finite_difference_accuracy_{max_accuracy}"][0] / number_formula,
+            "eV/Kelvin",
+            uncertainty_info={
+                "source-std-uncert-value": c[f"finite_difference_accuracy_{max_accuracy}"][1] / number_formula})
+        total_mass_g_per_mol = sum(atoms_new.get_masses())
+        self._add_key_to_current_property_instance(
+            "constant_pressure_specific_heat_capacity",
+            c[f"finite_difference_accuracy_{max_accuracy}"][0] / total_mass_g_per_mol,
+            "eV/Kelvin/(g/mol)",
+            uncertainty_info={
+                "source-std-uncert-value": c[f"finite_difference_accuracy_{max_accuracy}"][1] / total_mass_g_per_mol})
 
         alpha11 = alpha[0][0][f"finite_difference_accuracy_{max_accuracy}"][0]
         alpha11_err = alpha[0][0][f"finite_difference_accuracy_{max_accuracy}"][1]
@@ -212,66 +258,87 @@ class TestDriver(CrystalGenomeTestDriver):
 
         self._add_property_instance_and_common_crystal_genome_keys("thermal-expansion-coefficient-npt",
                                                                    write_stress=True, write_temp=True)
-        prototype_label = crystal_genome_designation["prototype_label"]
-        space_group = int(prototype_label.split("_")[2])
+        space_group = int(self.prototype_label.split("_")[2])
         # alpha11 defined for all space groups
-        self._add_key_to_current_property_instance("alpha11", alpha11, "1/K", uncertainty_info={"source-std-uncert-value":alpha11_err})
+        self._add_key_to_current_property_instance("alpha11", alpha11, "1/K",
+                                                   uncertainty_info={"source-std-uncert-value": alpha11_err})
 
         alpha_symmetry_reduced = np.asarray([[alpha11, 0.0, 0.0],
                                              [0.0, alpha11, 0.0],
-                                             [0.0, 0.0, alpha11 ]])
-        
+                                             [0.0, 0.0, alpha11]])
+
         alpha_symmetry_reduced_err = np.asarray([[alpha11_err, 0.0, 0.0],
-                                                [0.0, alpha11_err, 0.0],
-                                                [0.0, 0.0, alpha11_err ]])
+                                                 [0.0, alpha11_err, 0.0],
+                                                 [0.0, 0.0, alpha11_err]])
 
         # hexagona, trigonal, tetragonal space groups also compute alpha33
         if space_group <= 194:
-            self._add_key_to_current_property_instance("alpha33", alpha33, "1/K", uncertainty_info={"source-std-uncert-value":alpha33_err})
+            self._add_key_to_current_property_instance("alpha33", alpha33, "1/K",
+                                                       uncertainty_info={"source-std-uncert-value": alpha33_err})
 
             alpha_symmetry_reduced = np.asarray([[alpha11, 0.0, 0.0],
-                                                [0.0, alpha11, 0.0],
-                                                [0.0, 0.0, alpha33 ]])
-            
+                                                 [0.0, alpha11, 0.0],
+                                                 [0.0, 0.0, alpha33]])
+
             alpha_symmetry_reduced_err = np.asarray([[alpha11_err, 0.0, 0.0],
-                                                    [0.0, alpha11_err, 0.0],
-                                                    [0.0, 0.0, alpha33_err ]])
-        
+                                                     [0.0, alpha11_err, 0.0],
+                                                     [0.0, 0.0, alpha33_err]])
+
         # orthorhombic, also compute alpha22
         if space_group <= 74:
-            self._add_key_to_current_property_instance("alpha22", alpha22, "1/K", uncertainty_info={"source-std-uncert-value":alpha22_err})
+            self._add_key_to_current_property_instance("alpha22", alpha22, "1/K",
+                                                       uncertainty_info={"source-std-uncert-value": alpha22_err})
 
             alpha_symmetry_reduced = np.asarray([[alpha11, 0.0, 0.0],
-                                                [0.0, alpha22, 0.0],
-                                                [0.0, 0.0, alpha33 ]])
-            
+                                                 [0.0, alpha22, 0.0],
+                                                 [0.0, 0.0, alpha33]])
+
             alpha_symmetry_reduced_err = np.asarray([[alpha11_err, 0.0, 0.0],
-                                                    [0.0, alpha22_err, 0.0],
-                                                    [0.0, 0.0, alpha33_err ]])
-        
+                                                     [0.0, alpha22_err, 0.0],
+                                                     [0.0, 0.0, alpha33_err]])
+
         # monoclinic or triclinic, compute all components
         if space_group <= 15:
-            self._add_key_to_current_property_instance("alpha12", alpha12, "1/K", uncertainty_info={"source-std-uncert-value":alpha12_err})
-            self._add_key_to_current_property_instance("alpha13", alpha13, "1/K", uncertainty_info={"source-std-uncert-value":alpha13_err})
-            self._add_key_to_current_property_instance("alpha23", alpha23, "1/K", uncertainty_info={"source-std-uncert-value":alpha23_err})
+            self._add_key_to_current_property_instance("alpha12", alpha12, "1/K",
+                                                       uncertainty_info={"source-std-uncert-value": alpha12_err})
+            self._add_key_to_current_property_instance("alpha13", alpha13, "1/K",
+                                                       uncertainty_info={"source-std-uncert-value": alpha13_err})
+            self._add_key_to_current_property_instance("alpha23", alpha23, "1/K",
+                                                       uncertainty_info={"source-std-uncert-value": alpha23_err})
 
             alpha_symmetry_reduced = alpha_final
             alpha_symmetry_reduced_err = alpha_final_err
-        self._add_key_to_current_property_instance("thermal-expansion-tensor", alpha_final, "1/K", uncertainty_info={"source-std-uncert-value":alpha_final_err})
-        self._add_key_to_current_property_instance("thermal-expansion-tensor-symmetry-reduced",alpha_symmetry_reduced,"1/K",uncertainty_info={"source-std-uncert-value":alpha_symmetry_reduced_err})
-
-        self.write_property_instances_to_file()
+        self._add_key_to_current_property_instance("thermal-expansion-tensor", alpha_final, "1/K",
+                                                   uncertainty_info={"source-std-uncert-value": alpha_final_err})
+        self._add_key_to_current_property_instance("thermal-expansion-tensor-symmetry-reduced", alpha_symmetry_reduced,
+                                                   "1/K", uncertainty_info={
+                "source-std-uncert-value": alpha_symmetry_reduced_err})
 
 
 if __name__ == "__main__":
-    # model_name = "LJ_Shifted_Bernardes_1958MedCutoff_Ar__MO_126566794224_004"
-    model_name = "EAM_Dynamo_ErcolessiAdams_1994_Al__MO_123629422045_005"
+    # Argument parsing
+    parser = argparse.ArgumentParser(description='Pass arguments to the KIM test driver')
+    parser.add_argument('-m', '--model', help='Pass model for test driver to run', required=True)
+    parser.add_argument('-s', '--stoichiometry', help='Stoichiometry of structure to test', nargs='+',
+                        required=True)
+    parser.add_argument('-p', '--prototype', help='Prototype ASE label', required=True)
+    args = parser.parse_args()
+
+    # Get arguments
+    model_name = args.model
+    stoich = args.stoichiometry
+    prot = args.prototype
+
+    # Run test 
     subprocess.run(f"kimitems install {model_name}", shell=True, check=True)
     test_driver = TestDriver(model_name)
     list_of_queried_structures = query_crystal_genome_structures(kim_model_name=model_name,
-                                                                 stoichiometric_species=['Al'],
-                                                                 prototype_label='A_cF4_225_a')
-    for queried_structure in list_of_queried_structures:
-        test_driver(**queried_structure, temperature=293.15, pressure=1.0, temperature_step_fraction=0.01,
-                    number_symmetric_temperature_steps=2, timestep=0.001, number_sampling_timesteps=100,
-                    repeat=(3, 3, 3), loose_triclinic_and_monoclinic=True, max_workers=5)
+                                                                 stoichiometric_species=stoich,
+                                                                 prototype_label=prot)
+    for i, queried_structure in enumerate(list_of_queried_structures):
+        test_driver(**queried_structure, temperature_K=293.15,
+                    cell_cauchy_stress_eV_angstrom3=[6.241509074460762e-7, 6.241509074460762e-7, 6.241509074460762e-7,
+                                                     0.0, 0.0, 0.0],
+                    temperature_step_fraction=0.01, number_symmetric_temperature_steps=2, timestep=0.001,
+                    number_sampling_timesteps=100, repeat=(3, 3, 3), loose_triclinic_and_monoclinic=True, max_workers=5)
+        test_driver.write_property_instances_to_file(filename=f"output/results_{i}.edn")

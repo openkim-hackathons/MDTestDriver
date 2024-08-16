@@ -128,5 +128,5 @@ unfix cr_fix  # From run_length_control.py
 undump avePosDump
 reset_timestep 0
 
-# Write the initial starting file for a true simulation.
+# Write restart file.
 write_restart ${write_restart_filename}

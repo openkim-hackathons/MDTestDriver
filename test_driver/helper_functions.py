@@ -68,7 +68,8 @@ def run_lammps(modelname: str, temperature_index: int, temperature: float, press
         equilibration_time = int(ceil(equilibration_time / 10000.0)) * 10000
 
         full_average_position_file = f"output/average_position_temperature_{temperature_index}.dump.full"
-        compute_average_positions_from_lammps_dump("output", f"average_position_temperature_{temperature_index}.dump",
+        compute_average_positions_from_lammps_dump("output",
+                                                   f"average_position_temperature_{temperature_index}.dump",
                                                    full_average_position_file, equilibration_time)
 
         full_average_cell_file = f"output/average_cell_temperature_{temperature_index}.dump.full"
