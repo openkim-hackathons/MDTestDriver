@@ -6,7 +6,7 @@ import subprocess
 from typing import Optional, Sequence
 from ase.io.lammpsdata import write_lammps_data
 import numpy as np
-from kim_tools import get_stoich_reduced_list_from_prototype, query_crystal_genome_structures
+from kim_tools import get_stoich_reduced_list_from_prototype
 from kim_tools.test_driver import CrystalGenomeTestDriver
 from .helper_functions import (check_lammps_log_for_wrong_structure_format, compute_alpha, compute_heat_capacity,
                                get_cell_from_averaged_lammps_dump, get_positions_from_averaged_lammps_dump,
@@ -304,32 +304,3 @@ class TestDriver(CrystalGenomeTestDriver):
         self._add_key_to_current_property_instance("thermal-expansion-tensor-symmetry-reduced", alpha_symmetry_reduced,
                                                    "1/K", uncertainty_info={
                 "source-std-uncert-value": alpha_symmetry_reduced_err})
-
-
-if __name__ == "__main__":
-    # Argument parsing
-    parser = argparse.ArgumentParser(description='Pass arguments to the KIM test driver')
-    parser.add_argument('-m', '--model', help='Pass model for test driver to run', required=True)
-    parser.add_argument('-s', '--stoichiometry', help='Stoichiometry of structure to test', nargs='+',
-                        required=True)
-    parser.add_argument('-p', '--prototype', help='Prototype ASE label', required=True)
-    args = parser.parse_args()
-
-    # Get arguments
-    model_name = args.model
-    stoich = args.stoichiometry
-    prot = args.prototype
-
-    # Run test 
-    subprocess.run(f"kimitems install {model_name}", shell=True, check=True)
-    test_driver = TestDriver(model_name)
-    list_of_queried_structures = query_crystal_genome_structures(kim_model_name=model_name,
-                                                                 stoichiometric_species=stoich,
-                                                                 prototype_label=prot)
-    for i, queried_structure in enumerate(list_of_queried_structures):
-        test_driver(**queried_structure, temperature_K=293.15,
-                    cell_cauchy_stress_eV_angstrom3=[6.241509074460762e-7, 6.241509074460762e-7, 6.241509074460762e-7,
-                                                     0.0, 0.0, 0.0],
-                    temperature_step_fraction=0.01, number_symmetric_temperature_steps=2, timestep=0.001,
-                    number_sampling_timesteps=100, repeat=(3, 3, 3), loose_triclinic_and_monoclinic=True, max_workers=5)
-        test_driver.write_property_instances_to_file(filename=f"output/results_{i}.edn")
