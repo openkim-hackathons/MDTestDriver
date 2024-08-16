@@ -1,8 +1,5 @@
 """Run length control for LAMMPS."""
-import sys
-import os
-file_dir = os.path.dirname(__file__)
-sys.path.append(file_dir)
+
 import numpy as np
 from typing import Optional, Sequence
 from lammps import lammps

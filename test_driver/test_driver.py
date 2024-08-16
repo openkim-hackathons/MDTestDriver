@@ -3,9 +3,8 @@ import os
 import argparse
 import shutil
 import subprocess
-from typing import Optional, Tuple
+from typing import Optional, Sequence
 from ase.io.lammpsdata import write_lammps_data
-from ast import literal_eval
 import numpy as np
 from kim_tools import get_stoich_reduced_list_from_prototype, query_crystal_genome_structures
 from kim_tools.test_driver import CrystalGenomeTestDriver
@@ -15,15 +14,13 @@ from .helper_functions import (check_lammps_log_for_wrong_structure_format, comp
 
 
 class TestDriver(CrystalGenomeTestDriver):
-    def _calculate(self, temperature_K: float, pressure: float, temperature_step_fraction: float,
-                   number_symmetric_temperature_steps: int, timestep: float, number_sampling_timesteps: int,
-                   repeat: Tuple[int, int, int] = (3, 3, 3), loose_triclinic_and_monoclinic=False,
-                   max_workers: Optional[int] = None, **kwargs) -> None:
+    def _calculate(self, temperature_step_fraction: float, number_symmetric_temperature_steps: int, timestep: float,
+                   number_sampling_timesteps: int = 100, repeat: Sequence[int] = (3, 3, 3),
+                   loose_triclinic_and_monoclinic: bool = False, max_workers: Optional[int] = None, **kwargs) -> None:
         """
         Compute constant-pressure heat capacity from centered finite difference (see Section 3.2 in
         https://pubs.acs.org/doi/10.1021/jp909762j).
         """
-        temperature = temperature_K
         # Check arguments.
         if not self.temperature_K > 0.0:
             raise RuntimeError("Temperature has to be larger than zero.")
@@ -51,12 +48,9 @@ class TestDriver(CrystalGenomeTestDriver):
 
         if not number_sampling_timesteps > 0:
             raise RuntimeError("Number of timesteps between sampling in Lammps has to be bigger than zero.")
-        
-        if isinstance(repeat,str):
-            repeat = literal_eval(repeat)
 
-            if not isinstance(repeat,tuple):
-                raise RuntimeError("'repeat' should be a tuple of integers")
+        if not len(repeat) == 3:
+            raise RuntimeError("The repeat argument has to be a tuple of three integers.")
 
         if not all(r > 0 for r in repeat):
             raise RuntimeError("All number of repeats must be bigger than zero.")
@@ -76,9 +70,6 @@ class TestDriver(CrystalGenomeTestDriver):
         # Create atoms object that will contain the supercell.
         atoms_new = self.atoms.copy()
 
-        # UNCOMMENT THIS TO TEST A TRICLINIC STRUCTURE!
-        # atoms_new = bulk('Ar', 'fcc', a=5.248)
-
         # This is how ASE obtains the species that are written to the initial configuration.
         # These species are passed to kim interactions.
         # See https://wiki.fysik.dtu.dk/ase/_modules/ase/io/lammpsdata.html#write_lammps_data
@@ -95,39 +86,39 @@ class TestDriver(CrystalGenomeTestDriver):
         assert len(temperatures) == 2 * number_symmetric_temperature_steps + 1
         assert all(t > 0.0 for t in temperatures)
 
-        # Write lammps file.
-        TDdirectory = os.path.dirname(os.path.realpath(__file__))
-        # structure_file = os.path.join(TDdirectory, "output/zero_temperature_crystal.lmp")
-        structure_file = "output/zero_temperature_crystal.lmp"
-
-        atoms_new.write(structure_file, format="lammps-data", masses=True)
-
-        #Handle cases where kim models expect different structure file formats.
-        try:
-            run_lammps(self.kim_model_name, 0, temperatures[0], pressure, timestep,
-                       number_sampling_timesteps, species, test_file_read=True)
-        except subprocess.CalledProcessError as e:
-            filename = "output/lammps_temperature_0.log"
-            log_file = os.path.join(TDdirectory, filename)
-            wrong_format_error = check_lammps_log_for_wrong_structure_format(log_file)
-
-            if wrong_format_error:
-                # write the atom configuration file in the in the 'charge' format some models expect
-                write_lammps_data(structure_file, atoms_new, atom_style="charge", masses=True)
-                # try to read the file again, raise any exeptions that might happen
-                run_lammps(self.kim_model_name, 0, temperatures[0], pressure, timestep,
-                           number_sampling_timesteps, species, test_file_read=True)
-
-            else:
-                raise e
-        shutil.copyfile(TDdirectory+"/run_length_control.py","run_length_control.py")
-
+        # Create output directory for all data files and copy over necessary files.
+        os.mkdir("output")
+        test_driver_directory = os.path.dirname(os.path.realpath(__file__))
+        if os.getcwd() != test_driver_directory:
+            shutil.copyfile(os.path.join(test_driver_directory, "npt.lammps"), "npt.lammps")
+            shutil.copyfile(os.path.join(test_driver_directory, "file_read_test.lammps"), "file_read_test.lammps")
+            shutil.copyfile(os.path.join(test_driver_directory, "run_length_control.py"), "run_length_control.py")
         # Choose the correct accuracies file for kim-convergence based on whether the cell is orthogonal or not.
         if atoms_new.get_cell().orthorhombic:
-            shutil.copyfile(TDdirectory+"/accuracies_orthogonal.py", "output/../accuracies.py")
+            shutil.copyfile(os.path.join(test_driver_directory, "accuracies_orthogonal.py"), "accuracies.py")
         else:
-            shutil.copyfile(TDdirectory+"/accuracies_non_orthogonal.py", "output/../accuracies.py")
+            shutil.copyfile(os.path.join(test_driver_directory, "accuracies_non_orthogonal.py"), "accuracies.py")
 
+        # Write lammps file.
+        structure_file = "output/zero_temperature_crystal.lmp"
+        atoms_new.write(structure_file, format="lammps-data", masses=True)
+
+        # Handle cases where kim models expect different structure file formats.
+        try:
+            run_lammps(self.kim_model_name, 0, temperatures[0], pressure_bar, timestep,
+                       number_sampling_timesteps, species, test_file_read=True)
+        except subprocess.CalledProcessError as e:
+            wrong_format_error = check_lammps_log_for_wrong_structure_format(
+                "output/lammps_file_format_test_temperature_0.log")
+
+            if wrong_format_error:
+                # write the atom configuration file in the 'charge' format some models expect
+                write_lammps_data(structure_file, atoms_new, atom_style="charge", masses=True, units="metal")
+                # try to read the file again, raise any exeptions that might happen
+                run_lammps(self.kim_model_name, 0, temperatures[0], pressure_bar, timestep,
+                           number_sampling_timesteps, species, test_file_read=True)
+            else:
+                raise e
 
         # Run Lammps simulations in parallel.
         futures = []
