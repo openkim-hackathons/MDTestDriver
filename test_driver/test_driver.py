@@ -136,6 +136,13 @@ class TestDriver(CrystalGenomeTestDriver):
                     f.cancel()
                 raise exception
 
+        # Cleanup.
+        if os.getcwd() != test_driver_directory:
+            os.remove("npt.lammps")
+            os.remove("file_read_test.lammps")
+            os.remove("run_length_control.py")
+        os.remove("accuracies.py")
+
         # Collect results and check that symmetry is unchanged after all simulations.
         log_filenames = []
         restart_filenames = []
