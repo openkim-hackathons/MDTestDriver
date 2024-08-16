@@ -1,4 +1,5 @@
 kim.log
 .DS_Store
+test_driver/output
 test_driver/accuracies.py
 test_driver/__pycache__
