@@ -163,7 +163,6 @@ class TestDriver(CrystalGenomeTestDriver):
             os.remove("npt.lammps")
             os.remove("file_read_test.lammps")
             os.remove("run_length_control.py")
-        os.remove("accuracies.py")
 
         # Collect results and check that symmetry is unchanged after all simulations.
         log_filenames = []
