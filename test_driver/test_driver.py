@@ -4,6 +4,7 @@ import shutil
 import subprocess
 from typing import Optional, Sequence
 from ase.io.lammpsdata import write_lammps_data
+from ase.calculators.lammps import convert, Prism
 import numpy as np
 from kim_tools import get_stoich_reduced_list_from_prototype
 from kim_tools.test_driver import CrystalGenomeTestDriver
@@ -93,14 +94,35 @@ class TestDriver(CrystalGenomeTestDriver):
             shutil.copyfile(os.path.join(test_driver_directory, "file_read_test.lammps"), "file_read_test.lammps")
             shutil.copyfile(os.path.join(test_driver_directory, "run_length_control.py"), "run_length_control.py")
         # Choose the correct accuracies file for kim-convergence based on whether the cell is orthogonal or not.
-        if atoms_new.get_cell().orthorhombic:
-            shutil.copyfile(os.path.join(test_driver_directory, "accuracies_orthogonal.py"), "accuracies.py")
-        else:
-            shutil.copyfile(os.path.join(test_driver_directory, "accuracies_non_orthogonal.py"), "accuracies.py")
+        with open(os.path.join(test_driver_directory, "accuracies.py"), "w") as file:
+            print("""from typing import Optional, Sequence
+
+# A relative half-width requirement or the accuracy parameter. Target value
+# for the ratio of halfwidth to sample mean. If n_variables > 1,
+# relative_accuracy can be a scalar to be used for all variables or a 1darray
+# of values of size n_variables.
+# For cells, we can only use a relative accuracy for all non-zero variables.
+# The last three variables, however, correspond to the tilt factors of the orthogonal cell (see npt.lammps which are
+# expected to fluctuate around zero. For these, we should use an absolute accuracy instead.""", file=file)
+            relative_accuracies = ["0.01", "0.01", "0.01", "0.01", "0.01", "0.01", "0.01", "0.01", "0.01"]
+            absolute_accuracies = ["None", "None", "None", "None", "None", "None", "None", "None", "None"]
+            _, _, _, xy, xz, yz = convert(Prism(atoms_new.get_cell()).get_lammps_prism(), "distance",
+                                          "ASE", "metal")
+            if abs(xy) < 1.0e-6:
+                relative_accuracies[6] = "None"
+                absolute_accuracies[6] = "0.01"
+            if abs(xz) < 1.0e-6:
+                relative_accuracies[7] = "None"
+                absolute_accuracies[7] = "0.01"
+            if abs(yz) < 1.0e-6:
+                relative_accuracies[8] = "None"
+                absolute_accuracies[8] = "0.01"
+            print(f"RELATIVE_ACCURACY: Sequence[Optional[float]] = [{', '.join(relative_accuracies)}]", file=file)
+            print(f"ABSOLUTE_ACCURACY: Sequence[Optional[float]] = [{', '.join(absolute_accuracies)}]", file=file)
 
         # Write lammps file.
         structure_file = "output/zero_temperature_crystal.lmp"
-        atoms_new.write(structure_file, format="lammps-data", masses=True)
+        atoms_new.write(structure_file, format="lammps-data", masses=True, units="metal")
 
         # Handle cases where kim models expect different structure file formats.
         try:
