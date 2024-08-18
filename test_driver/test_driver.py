@@ -94,7 +94,7 @@ class TestDriver(CrystalGenomeTestDriver):
             shutil.copyfile(os.path.join(test_driver_directory, "file_read_test.lammps"), "file_read_test.lammps")
             shutil.copyfile(os.path.join(test_driver_directory, "run_length_control.py"), "run_length_control.py")
         # Choose the correct accuracies file for kim-convergence based on whether the cell is orthogonal or not.
-        with open(os.path.join(test_driver_directory, "accuracies.py"), "w") as file:
+        with open("accuracies.py", "w") as file:
             print("""from typing import Optional, Sequence
 
 # A relative half-width requirement or the accuracy parameter. Target value
