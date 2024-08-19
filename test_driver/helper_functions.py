@@ -36,7 +36,8 @@ def run_lammps(modelname: str, temperature_index: int, temperature: float, press
         "species": " ".join(species),
         "average_position_filename": f"output/average_position_temperature_{temperature_index}.dump.*",
         "average_cell_filename": f"output/average_cell_temperature_{temperature_index}.dump",
-        "write_restart_filename": restart_filename
+        "write_restart_filename": restart_filename,
+        "trajectory_filename": f"output/trajectory_{temperature_index}.lammpstrj"
     }
     if test_file_read:
         # do a minimal test to see if the model can read the structure file
