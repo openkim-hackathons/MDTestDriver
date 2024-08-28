@@ -6,7 +6,7 @@ from typing import Optional, Sequence
 from ase.io.lammpsdata import write_lammps_data
 from ase.calculators.lammps import convert, Prism
 import numpy as np
-from kim_tools import get_stoich_reduced_list_from_prototype
+from kim_tools import get_stoich_reduced_list_from_prototype, KIMTestDriverError
 from kim_tools.test_driver import CrystalGenomeTestDriver
 from .helper_functions import (check_lammps_log_for_wrong_structure_format, compute_alpha, compute_heat_capacity,
                                get_cell_from_averaged_lammps_dump, get_positions_from_averaged_lammps_dump,
@@ -186,8 +186,13 @@ class TestDriver(CrystalGenomeTestDriver):
                 # will be used for the heat-capacity and thermal expansion properties.
                 middle_temperature_atoms = reduced_atoms.copy()
                 middle_temperature = t
-            self._update_crystal_genome_designation_from_atoms(
-                reduced_atoms, loose_triclinic_and_monoclinic=loose_triclinic_and_monoclinic)
+            try:
+                self._update_crystal_genome_designation_from_atoms(
+                    reduced_atoms, loose_triclinic_and_monoclinic=loose_triclinic_and_monoclinic)
+            except KIMTestDriverError as e:
+                reduced_atoms.write(f"output/reduced_atoms_temperature_{t_index}_failing.poscar",
+                                    format="vasp", sort=True)
+                raise e
             self.temperature_K = t
             self._add_property_instance_and_common_crystal_genome_keys("crystal-structure-npt", write_stress=True,
                                                                        write_temp=True)
