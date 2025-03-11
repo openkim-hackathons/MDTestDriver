@@ -10,7 +10,7 @@ from kim_tools import get_stoich_reduced_list_from_prototype, KIMTestDriverError
 from kim_tools.test_driver import CrystalGenomeTestDriver
 from .helper_functions import (check_lammps_log_for_wrong_structure_format, compute_alpha, compute_heat_capacity,
                                get_cell_from_averaged_lammps_dump, get_positions_from_averaged_lammps_dump,
-                               reduce_and_avg, run_lammps)
+                               reduce_and_avg, run_lammps, test_reduced_distances)
 
 
 class TestDriver(CrystalGenomeTestDriver):
@@ -179,7 +179,7 @@ class TestDriver(CrystalGenomeTestDriver):
             atoms_new.set_cell(get_cell_from_averaged_lammps_dump(average_cell_filename))
             atoms_new.set_scaled_positions(
                 get_positions_from_averaged_lammps_dump(average_position_filename))
-            reduced_atoms = reduce_and_avg(atoms_new, repeat)
+            reduced_atoms, reduced_distances = reduce_and_avg(atoms_new, repeat)
 
             if t_index == number_symmetric_temperature_steps:
                 # Store the atoms of the middle temperature for later because their crystal genome designation 
@@ -189,6 +189,9 @@ class TestDriver(CrystalGenomeTestDriver):
             try:
                 self._update_crystal_genome_designation_from_atoms(
                     reduced_atoms, loose_triclinic_and_monoclinic=loose_triclinic_and_monoclinic)
+                test_reduced_distances(reduced_distances, significance_level=0.05,
+                                       plot_filename=f"output/reduced_distance_histogram_temperature_{t_index}.pdf",
+                                       number_bins=20)
             except KIMTestDriverError as e:
                 reduced_atoms.write(f"output/reduced_atoms_temperature_{t_index}_failing.poscar",
                                     format="vasp", sort=True)
