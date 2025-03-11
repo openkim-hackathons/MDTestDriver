@@ -34,7 +34,7 @@ class TestDriver(CrystalGenomeTestDriver):
                                "pressure is used.")
 
         if not (self.cell_cauchy_stress_eV_angstrom3[3] == self.cell_cauchy_stress_eV_angstrom3[4]
-                == self.cell_cauchy_stress_eV_angstrom3[5]):
+                == self.cell_cauchy_stress_eV_angstrom3[5] == 0.0):
             raise RuntimeError("The off-diagonal entries of the stress tensor have to be zero so that a hydrostatic "
                                "pressure is used.")
 
