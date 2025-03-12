@@ -358,13 +358,11 @@ def test_reduced_distances(reduced_distances: npt.NDArray[float], significance_l
             raise ValueError("number_bins must be specified if plot_filename is specified")
         if not plot_filename.endswith(".pdf"):
             raise ValueError(f"{plot_filename} is not a PDF file")
-        max_abs_value = np.max(np.abs(reduced_distances))
-        bin_range = (-max_abs_value, max_abs_value)
         with PdfPages(plot_filename) as pdf:
             for i in range(reduced_distances.shape[0]):
-                fig, axs = plt.subplots(1, 3, sharex=True)
+                fig, axs = plt.subplots(1, 3, figsize=(10.0, 4.0))
                 for j in range(reduced_distances.shape[2]):
-                    axs[j].hist(reduced_distances[i, :, j], bins=number_bins, range=bin_range)
+                    axs[j].hist(reduced_distances[i, :, j], bins=number_bins)
                     axs[j].set_xlabel(f"$x_{j}$")
                 axs[0].set_ylabel(f"Counts")
                 fig.suptitle(f"Atom {i}")
@@ -395,7 +393,7 @@ def test_reduced_distances(reduced_distances: npt.NDArray[float], significance_l
             p_values[i, j] = res.pvalue
 
     if np.any(p_values <= significance_level):
-        raise KIMTestDriverError("Detected non-normal distribution of reduced atom positions around their average.")
+        raise KIMTestDriverError(f"Detected non-normal distribution of reduced atom positions around their average (smallest p value {np.min(p_values)}).")
 
 def get_positions_from_averaged_lammps_dump(filename: str) -> List[Tuple[float, float, float]]:
     lines = sorted(np.loadtxt(filename, skiprows=9).tolist(), key=lambda x: x[0])
