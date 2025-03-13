@@ -28,6 +28,6 @@ if __name__ == '__main__':
         test_driver(**queried_structure, temperature_K=293.15,
                     cell_cauchy_stress_eV_angstrom3=[6.241509074460762e-7, 6.241509074460762e-7, 6.241509074460762e-7,
                                                      0.0, 0.0, 0.0],
-                    temperature_step_fraction=0.01, number_symmetric_temperature_steps=2, timestep=0.001,
-                    number_sampling_timesteps=100, repeat=(3, 3, 3), loose_triclinic_and_monoclinic=True, max_workers=5)
+                    temperature_step_fraction=0.01, number_symmetric_temperature_steps=1, timestep=0.001,
+                    number_sampling_timesteps=100, repeat=(10, 10, 10), loose_triclinic_and_monoclinic=True, max_workers=5)
         test_driver.write_property_instances_to_file(filename=f"output/results_{i}.edn")
