@@ -384,6 +384,7 @@ def test_reduced_distances(reduced_distances: npt.NDArray[float], significance_l
         for j in range(pca_components.shape[1]):
             component = pca_components[:, j]
             component_mean = np.mean(component)
+            assert abs(component_mean) < 1.0e-7
             component_std = np.std(component)
             # Normalize component
             normalized_component = (component - component_mean) / component_std
@@ -394,6 +395,8 @@ def test_reduced_distances(reduced_distances: npt.NDArray[float], significance_l
 
     if np.any(p_values <= significance_level):
         raise KIMTestDriverError(f"Detected non-normal distribution of reduced atom positions around their average (smallest p value {np.min(p_values)}).")
+    else:
+        print(f"Detected normal distribution or reduced atom positions around their average (smallest p value {np.min(p_values)}).")
 
 def get_positions_from_averaged_lammps_dump(filename: str) -> List[Tuple[float, float, float]]:
     lines = sorted(np.loadtxt(filename, skiprows=9).tolist(), key=lambda x: x[0])
