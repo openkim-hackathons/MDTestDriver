@@ -1,10 +1,9 @@
 @< path("{{TEST_DRIVER_NAME}}") >@ {# FILENAME = pipeline.stdin.tpl #}
 @< MODELNAME >@
-{{stoichiometric_species}}
-{{prototype_label}}
 {{temperature_K}}
-{{cell_cauchy_stress_eV_angstrom3}}
-@< query({
+{{cell_cauchy_stress_eV_angstrom3|join(' ')}}
+{{crystal_genome_test_args}}
+{% if parameter_sets is not defined %}@< query({
     "query": {
         "meta.type":"tr",
         "property-id":"tag:staff@noreply.openkim.org,2023-02-21:property/crystal-structure-npt",
@@ -17,16 +16,5 @@
         "cell-cauchy-stress.si-value": 0,
         "temperature.si-value": 0
     },
-    "fields":{
-        "a.si-value":1,
-        "parameter-names.source-value":1,
-        "parameter-values.source-value":1,
-        "library-prototype-label.source-value":1,
-        "short-name.source-value":1,
-        "meta.uuid":1,
-        "instance-id":1,
-        "crystal-genome-source-structure-id.source-value":1,
-    },
-    "database":"data", "limit":0, "flat":"on"
-}) >@
-{{crystal_genome_test_args}}
+    "database":"data", "limit":0,
+}) >@{% else %}{{parameter_sets}}{% endif %}
