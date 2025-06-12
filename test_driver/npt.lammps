@@ -78,8 +78,6 @@ variable msd_slope equal slope(f_msd_vector)
 thermo_style custom step v_pe_metal v_ke_metal v_temp_metal v_press_metal v_vol_metal &
                          v_xlo_metal v_xhi_metal v_ylo_metal v_yhi_metal v_zlo_metal v_zhi_metal &
                          v_xy_metal v_xz_metal v_yz_metal v_enthalpy_metal c_msd[4] v_msd_slope
-
-lx ly lz xy yz xz temp press vol etotal c_msd[4] v_msd_slope step
 thermo 1000
         
 # Perform a short run and decide whether or not to quit
