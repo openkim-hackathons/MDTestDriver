@@ -100,7 +100,8 @@ class TestDriver(SingleCrystalTestDriver):
         assert len(temperatures) == 2 * number_symmetric_temperature_steps + 1
         assert all(t > 0.0 for t in temperatures)
 
-        # Copy over necessary files.
+        # Create output directory for all data files and copy over necessary files.
+        os.mkdir("output")
         test_driver_directory = os.path.dirname(os.path.realpath(__file__))
         if os.getcwd() != test_driver_directory:
             shutil.copyfile(os.path.join(test_driver_directory, "npt.lammps"), "npt.lammps")
