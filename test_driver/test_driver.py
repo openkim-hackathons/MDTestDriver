@@ -16,7 +16,8 @@ from .helper_functions import (check_lammps_log_for_wrong_structure_format, comp
 class TestDriver(SingleCrystalTestDriver):
     def _calculate(self, temperature_step_fraction: float, number_symmetric_temperature_steps: int, timestep: float,
                    number_sampling_timesteps: int = 100, repeat: Sequence[int] = (3, 3, 3),
-                   max_workers: Optional[int] = None, number_cpus_per_temperature_step: int = 1, **kwargs) -> None:
+                   max_workers: Optional[int] = None, number_cpus_per_temperature_step: int = 1, 
+                   msd_threshold: float = 0.1, **kwargs) -> None:
         """
         Compute constant-pressure heat capacity from centered finite difference (see Section 3.2 in
         https://pubs.acs.org/doi/10.1021/jp909762j).
@@ -61,6 +62,9 @@ class TestDriver(SingleCrystalTestDriver):
 
         if max_workers is not None and not max_workers > 0:
             raise RuntimeError("Maximum number of workers has to be bigger than zero.")
+        
+        if not msd_threshold > 0.0:
+            raise RuntimeError("The mean-squared displacement threshold has to be bigger than zero.")
 
         # Get pressure from cauchy stress tensor.
         pressure_bar = -cell_cauchy_stress_bar[0]
@@ -141,7 +145,7 @@ class TestDriver(SingleCrystalTestDriver):
         # Handle cases where kim models expect different structure file formats.
         try:
             run_lammps(self.kim_model_name, 0, temperatures[0], pressure_bar, timestep,
-                       number_sampling_timesteps, species, number_cpus=1, test_file_read=True)
+                       number_sampling_timesteps, species, msd_threshold, number_cpus=1, test_file_read=True)
         except subprocess.CalledProcessError as e:
             wrong_format_error = check_lammps_log_for_wrong_structure_format(
                 "output/lammps_file_format_test_temperature_0.log")
@@ -151,7 +155,7 @@ class TestDriver(SingleCrystalTestDriver):
                 write_lammps_data(structure_file, atoms_new, atom_style="charge", masses=True, units="metal")
                 # try to read the file again, raise any exeptions that might happen
                 run_lammps(self.kim_model_name, 0, temperatures[0], pressure_bar, timestep,
-                           number_sampling_timesteps, species, number_cpus=1, test_file_read=True)
+                           number_sampling_timesteps, species, msd_threshold, number_cpus=1, test_file_read=True)
             else:
                 raise e
 
@@ -161,7 +165,7 @@ class TestDriver(SingleCrystalTestDriver):
             for i, t in enumerate(temperatures):
                 futures.append(executor.submit(
                     run_lammps, self.kim_model_name, i, t, pressure_bar, timestep,
-                    number_sampling_timesteps, species, max_reasonable_cpus))
+                    number_sampling_timesteps, species, msd_threshold, max_reasonable_cpus))
 
         # If one simulation fails, cancel all runs.
         for future in as_completed(futures):
