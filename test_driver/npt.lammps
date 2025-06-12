@@ -59,6 +59,36 @@ variable yz_metal equal yz/${_u_distance}
 # In metal units: 1 bar Angstrom^3 = 6.241509074460762e-7 eV
 variable enthalpy_metal equal "v_pe_metal + v_ke_metal + v_press_metal * v_vol_metal * 6.241509074460762e-7"
 
+# Temperature may be off because of rigid bodies or SHAKE constraints.
+# See https://docs.lammps.org/velocity.html
+run 0
+velocity all scale $(v_temperature*v__u_temperature)
+
+# Compute mean squared displacement 
+compute msd all msd com yes
+
+# Perform a short run to equilibrate MSD
+run 5000
+        
+# Calculate slope of MSD to detect diffusion
+fix msd_vector all vector 100 c_msd[4]
+variable msd_slope equal slope(f_msd_vector)
+
+# Thermodynamic output
+thermo_style custom step v_pe_metal v_ke_metal v_temp_metal v_press_metal v_vol_metal &
+                         v_xlo_metal v_xhi_metal v_ylo_metal v_yhi_metal v_zlo_metal v_zhi_metal &
+                         v_xy_metal v_xz_metal v_yz_metal v_enthalpy_metal c_msd[4] v_msd_slope
+
+lx ly lz xy yz xz temp press vol etotal c_msd[4] v_msd_slope step
+thermo 1000
+        
+# Perform a short run and decide whether or not to quit
+run 5000
+if "${msd_slope} > ${msd_threshold}" then "write_dump all atom ${melted_crystal_output}" &
+                                "print 'Crystal melted or vaporized'" &
+                                "quit"
+unfix msd_vector
+
 # Set up logging of thermodynamic information.
 thermo_style custom step v_pe_metal v_ke_metal v_temp_metal v_press_metal v_vol_metal &
                          v_xlo_metal v_xhi_metal v_ylo_metal v_yhi_metal v_zlo_metal v_zhi_metal &
@@ -106,11 +136,6 @@ fix aveCell all ave/time 1 10000 10000 v_lx_metal v_ly_metal v_lz_metal v_xy_met
 
 # Write trajectory.
 dump traj all atom 10000 ${trajectory_filename}
-
-# Temperature may be off because of rigid bodies or SHAKE constraints.
-# See https://docs.lammps.org/velocity.html
-run 0
-velocity all scale $(v_temperature*v__u_temperature)
 
 # Set up convergence check with kim-convergence.
 # python run_length_control input 8 SELF 1 variable vol_metal variable temp_metal variable enthalpy_metal format pissssss file run_length_control.py
