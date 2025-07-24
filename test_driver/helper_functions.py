@@ -46,7 +46,7 @@ def run_lammps(modelname: str, temperature_index: int, temperature: float, press
         "trajectory_filename": f"output/trajectory_{temperature_index}.lammpstrj",
         "msd_threshold": msd_threshold
     }
-    lammps_command = f"mpirun -np {number_cpus} lammps" if number_cpus > 1 else "lammps"
+    lammps_command = f"mpirun -np {number_cpus} lmp" if number_cpus > 1 else "lmp"
 
     if test_file_read:
         # do a minimal test to see if the model can read the structure file
