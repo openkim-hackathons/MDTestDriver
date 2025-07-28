@@ -11,7 +11,7 @@
 ; CHANGE THE SECTION BELOW WHEN CREATING NEW PROPERTIES
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-  "constant_pressure_heat_capacity_per_atom" {
+  "constant-pressure-heat-capacity-per-atom" {
     "type"         "float"
     "has-unit"     true
     "extent"       []
@@ -19,7 +19,7 @@
     "description" "Constant pressure heat capacity per atom of solid"
   }
 
-  "constant_pressure_heat_capacity_per_formula" {
+  "constant-pressure-heat-capacity-per-formula" {
     "type"         "float"
     "has-unit"     true
     "extent"       []
@@ -27,7 +27,7 @@
     "description" "Constant pressure heat capacity per formula of solid"
   }
 
-  "constant_pressure_specific_heat_capacity" {
+  "constant-pressure-specific-heat-capacity" {
     "type"         "float"
     "has-unit"     true
     "extent"       []

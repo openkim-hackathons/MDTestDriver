@@ -1,7 +1,15 @@
-kim.log
 .DS_Store
 test_driver/output
 output_*
 test_driver/output_*
 test_driver/accuracies.py
 test_driver/__pycache__
+output*
+*.log
+log.*
+__pycache__
+run_length_control.py
+accuracies.py
+file_read_test.lammps
+npt.lammps
+*.out

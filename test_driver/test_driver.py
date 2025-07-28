@@ -85,9 +85,9 @@ class TestDriver(SingleCrystalTestDriver):
         if repeat == (0, 0, 0):
             # Get a size close to 10K atoms (shown to give good convergence)
             x = int(np.ceil(np.cbrt(10000 / len(atoms_new))))
-            atoms_new = atoms_new.repeat((x, x, x))
-        else:
-            atoms_new = atoms_new.repeat(repeat)
+            repeat = (x, x, x)
+
+        atoms_new = atoms_new.repeat(repeat)
         
         # Determine appropriate number of processors based on system size.
         number_atoms = len(atoms_new)
@@ -105,7 +105,7 @@ class TestDriver(SingleCrystalTestDriver):
         assert all(t > 0.0 for t in temperatures)
 
         # Create output directory for all data files and copy over necessary files.
-        os.mkdir("output")
+        os.makedirs("output", exist_ok=True)
         test_driver_directory = os.path.dirname(os.path.realpath(__file__))
         if os.getcwd() != test_driver_directory:
             shutil.copyfile(os.path.join(test_driver_directory, "npt.lammps"), "npt.lammps")
@@ -205,7 +205,7 @@ class TestDriver(SingleCrystalTestDriver):
 
             if t_index == number_symmetric_temperature_steps:
                 # Store the atoms of the middle temperature for later because their crystal genome designation 
-                # will be used for the heat-capacity and thermal expansion properties.
+                # will be used for the heat-capacity and thermal expansion lrties.
                 middle_temperature_atoms = reduced_atoms.copy()
                 middle_temperature = t
             
@@ -258,7 +258,7 @@ class TestDriver(SingleCrystalTestDriver):
         assert len(atoms_new) == len(original_atoms) * repeat[0] * repeat[1] * repeat[2]
         number_atoms = len(atoms_new)
         self._add_key_to_current_property_instance(
-            "constant_pressure_heat_capacity_per_atom",
+            "constant-pressure-heat-capacity-per-atom",
             c[f"finite_difference_accuracy_{max_accuracy}"][0] / number_atoms,
             "eV/Kelvin",
             uncertainty_info={
@@ -267,14 +267,14 @@ class TestDriver(SingleCrystalTestDriver):
         assert number_atoms % number_atoms_in_formula == 0
         number_formula = number_atoms // number_atoms_in_formula
         self._add_key_to_current_property_instance(
-            "constant_pressure_heat_capacity_per_formula",
+            "constant-pressure-heat-capacity-per-formula",
             c[f"finite_difference_accuracy_{max_accuracy}"][0] / number_formula,
             "eV/Kelvin",
             uncertainty_info={
                 "source-std-uncert-value": c[f"finite_difference_accuracy_{max_accuracy}"][1] / number_formula})
         total_mass_g_per_mol = sum(atoms_new.get_masses())
         self._add_key_to_current_property_instance(
-            "constant_pressure_specific_heat_capacity",
+            "constant-pressure-specific-heat-capacity",
             c[f"finite_difference_accuracy_{max_accuracy}"][0] / total_mass_g_per_mol,
             "eV/Kelvin/(g/mol)",
             uncertainty_info={

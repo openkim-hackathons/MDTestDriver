@@ -1,11 +1,11 @@
-python -m test_driver.test_driver -m Sim_LAMMPS_Buckingham_FreitasSantosColaco_2015_SiCaOAl__SM_154093256665_000 -p AB3C_aP30_2_3i_9i_3i -s Ca O Si
-python -m test_driver.test_driver -m EDIP_LAMMPS_Marks_2000_C__MO_374144505645_000 -p A_mC16_12_4i -s C
-python -m test_driver.test_driver -m MEAM_LAMMPS_FernandezPascuet_2014_U__MO_399431830125_002 -p A_oC4_63_c -s U
-python -m test_driver.test_driver -m SNAP_LiHuChen_2018_NiMo__MO_468686727341_000 -p AB4_tI10_87_a_h -s Mo Ni
-python -m test_driver.test_driver -m Sim_LAMMPS_Buckingham_MatsuiAkaogi_1991_TiO__SM_690504433912_000 -p A2B_tP6_136_f_a -s O Ti
-python -m test_driver.test_driver -m MEAM_LAMMPS_JeongParkDo_2018_PdAl__MO_616482358807_002 -p AB_hR26_148_a2f_b2f -s Al Pd
-python -m test_driver.test_driver -m Tersoff_LAMMPS_MunetohMotookaMoriguchi_2007_SiO__MO_501246546792_000 -p A2B_hP9_154_c_a -s O Si
-python -m test_driver.test_driver -m EAM_Dynamo_AcklandMendelevSrolovitz_2004_FeP__MO_884343146310_005 -p A2B_hP9_189_fg_ad -s Fe P
-python -m test_driver.test_driver -m Sim_LAMMPS_BOP_MurdickZhouWadley_2006_GaAs__SM_104202807866_001 -p AB_cP16_205_c_c -s As Ga
-python -m test_driver.test_driver -m Sim_LAMMPS_ReaxFF_BrugnoliMiyataniAkaji_SiCeNaClHO_2023__SM_282799919035_000 -p AB2_cF12_225_a_c -s Ce O
-python -m test_driver.test_driver -m EAM_Dynamo_ErcolessiAdams_1994_Al__MO_123629422045_005 -p A_cF4_225_a -s Al
+python run.py -m Sim_LAMMPS_Buckingham_FreitasSantosColaco_2015_SiCaOAl__SM_154093256665_000 -p AB3C_aP30_2_3i_9i_3i -s Ca O Si
+python run.py -m EDIP_LAMMPS_Marks_2000_C__MO_374144505645_000 -p A_mC16_12_4i -s C
+python run.py -m MEAM_LAMMPS_FernandezPascuet_2014_U__MO_399431830125_002 -p A_oC4_63_c -s U
+python run.py -m SNAP_LiHuChen_2018_NiMo__MO_468686727341_000 -p AB4_tI10_87_a_h -s Mo Ni
+python run.py -m Sim_LAMMPS_Buckingham_MatsuiAkaogi_1991_TiO__SM_690504433912_000 -p A2B_tP6_136_f_a -s O Ti
+python run.py -m MEAM_LAMMPS_JeongParkDo_2018_PdAl__MO_616482358807_002 -p AB_hR26_148_a2f_b2f -s Al Pd
+python run.py -m Tersoff_LAMMPS_MunetohMotookaMoriguchi_2007_SiO__MO_501246546792_000 -p A2B_hP9_154_c_a -s O Si
+python run.py -m EAM_Dynamo_AcklandMendelevSrolovitz_2004_FeP__MO_884343146310_005 -p A2B_hP9_189_fg_ad -s Fe P
+python run.py -m Sim_LAMMPS_BOP_MurdickZhouWadley_2006_GaAs__SM_104202807866_001 -p AB_cP16_205_c_c -s As Ga
+python run.py -m Sim_LAMMPS_ReaxFF_BrugnoliMiyataniAkaji_SiCeNaClHO_2023__SM_282799919035_000 -p AB2_cF12_225_a_c -s Ce O
+python run.py -m EAM_Dynamo_ErcolessiAdams_1994_Al__MO_123629422045_005 -p A_cF4_225_a -s Al

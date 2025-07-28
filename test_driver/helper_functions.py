@@ -135,7 +135,7 @@ def plot_property_from_lammps_log(in_file_path: str, property_names: Iterable[st
 
     table = get_table(in_file_path)
     write_table(table, out_file_path)
-    df = np.loadtxt(out_file_path, skiprows=1)
+    df = np.loadtxt(out_file_path, skiprows=1, usecols=tuple(range(16)))
 
     for property_name in property_names:
         with open(out_file_path) as file:
