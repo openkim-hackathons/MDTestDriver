@@ -647,7 +647,7 @@ def compute_alpha(log_filenames: List[str], temperatures: List[float], prototype
                                 (1 / cval) ** 2 * cslope_err ** 2)
         alpha33[f"finite_difference_accuracy_{accuracy}"][1] = alpha33_err
 
-        alpha12_err = np.sqrt(((1/(4*np.tan(gamma_star))) * ((aslope_val/aval**2)**2 * aval_err**2 + (bslope_val/bval**2)**2 * bval_err**2
+        alpha12_err = np.sqrt(((1/(4*np.tan(gamma_star))**2) * ((aslope_val/aval**2)**2 * aval_err**2 + (bslope_val/bval**2)**2 * bval_err**2
                                                              + (1/aval)**2 * aslope_err**2 + (1/bval)**2 * bslope_err**2 
                                                              + (alpha_angle_slope_val/np.sin(np.radians(alphaval))**2)**2 * alphaval_err**2
                                                              + (beta_angle_slope_val/np.sin(np.radians(betaval))**2)**2 * betaval_err**2
