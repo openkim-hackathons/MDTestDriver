@@ -10,7 +10,7 @@ from kim_tools import get_stoich_reduced_list_from_prototype, KIMTestDriverError
 from kim_tools.symmetry_util.core import reduce_and_avg, kstest_reduced_distances, PeriodExtensionException
 from kim_tools.test_driver import SingleCrystalTestDriver
 from .helper_functions import (check_lammps_log_for_wrong_structure_format, compute_alpha, compute_heat_capacity,
-                               get_cell_from_averaged_lammps_dump, get_positions_from_averaged_lammps_dump, run_lammps)
+                               get_cell_from_averaged_lammps_dump, get_positions_from_averaged_lammps_dump, run_lammps, assign_charges)
 
 
 class TestDriver(SingleCrystalTestDriver):
@@ -22,6 +22,9 @@ class TestDriver(SingleCrystalTestDriver):
         Compute constant-pressure heat capacity from centered finite difference (see Section 3.2 in
         https://pubs.acs.org/doi/10.1021/jp909762j).
         """
+        # Set prototype label
+        self.prototype_label = self._get_nominal_crystal_structure_npt()["prototype-label"]["source-value"]
+
         # Get temperature in Kelvin.
         temperature_K = self._get_temperature(unit="K")
 
@@ -152,6 +155,7 @@ class TestDriver(SingleCrystalTestDriver):
 
             if wrong_format_error:
                 # write the atom configuration file in the 'charge' format some models expect
+                #assign_charges(atoms_new)
                 write_lammps_data(structure_file, atoms_new, atom_style="charge", masses=True, units="metal")
                 # try to read the file again, raise any exeptions that might happen
                 run_lammps(self.kim_model_name, 0, temperatures[0], pressure_bar, timestep,
@@ -362,6 +366,8 @@ class TestDriver(SingleCrystalTestDriver):
 
             alpha_symmetry_reduced = alpha_final
             alpha_symmetry_reduced_err = alpha_final_err
+        print(alpha_final)
+        print(alpha_final_err)
         self._add_key_to_current_property_instance("thermal-expansion-tensor", alpha_final, "1/K",
                                                    uncertainty_info={"source-std-uncert-value": alpha_final_err})
         self._add_key_to_current_property_instance("thermal-expansion-tensor-symmetry-reduced", alpha_symmetry_reduced,
