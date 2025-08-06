@@ -19,7 +19,7 @@ if __name__ == '__main__':
     prot = args.prototype
 
     # Run test
-    subprocess.run(f"kim-api-collections-management install system {model_name}", shell=True, check=True)
+    subprocess.run(f"kim-api-collections-management install user {model_name}", shell=True, check=True)
     test_driver = TestDriver(model_name)
     list_of_queried_structures = query_crystal_structures(kim_model_name=model_name,
                                                           stoichiometric_species=stoich,
