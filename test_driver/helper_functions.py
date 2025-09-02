@@ -19,7 +19,7 @@ from kim_tools import KIMTestDriverError
 
 
 def run_lammps(modelname: str, temperature_index: int, temperature: float, pressure: float, timestep: float,
-               number_sampling_timesteps: int, species: List[str], msd_threshold: float, number_cpus: int, 
+               number_sampling_timesteps: int, species: List[str], msd_threshold: float, lammps_command: str, 
                test_file_read=False) -> Tuple[str, str, str, str]:
     # Get random 31-bit unsigned integer.
     seed = random.getrandbits(31)
@@ -46,7 +46,6 @@ def run_lammps(modelname: str, temperature_index: int, temperature: float, press
         "trajectory_filename": f"output/trajectory_{temperature_index}.lammpstrj",
         "msd_threshold": msd_threshold
     }
-    lammps_command = f"mpirun -np {number_cpus} lmp" if number_cpus > 1 else "lmp"
 
     if test_file_read:
         # do a minimal test to see if the model can read the structure file

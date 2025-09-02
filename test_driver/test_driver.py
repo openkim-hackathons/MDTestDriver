@@ -10,13 +10,13 @@ from kim_tools import get_stoich_reduced_list_from_prototype, KIMTestDriverError
 from kim_tools.symmetry_util.core import reduce_and_avg, kstest_reduced_distances, PeriodExtensionException
 from kim_tools.test_driver import SingleCrystalTestDriver
 from .helper_functions import (check_lammps_log_for_wrong_structure_format, compute_alpha, compute_heat_capacity,
-                               get_cell_from_averaged_lammps_dump, get_positions_from_averaged_lammps_dump, run_lammps, assign_charges)
+                               get_cell_from_averaged_lammps_dump, get_positions_from_averaged_lammps_dump, run_lammps)
 
 
 class TestDriver(SingleCrystalTestDriver):
     def _calculate(self, temperature_step_fraction: float, number_symmetric_temperature_steps: int, timestep: float,
                    number_sampling_timesteps: int = 100, repeat: Sequence[int] = (3, 3, 3),
-                   max_workers: Optional[int] = None, number_cpus_per_temperature_step: int = 1, 
+                   max_workers: Optional[int] = None, lammps_command = "lmp", 
                    msd_threshold: float = 0.1, **kwargs) -> None:
         """
         Compute constant-pressure heat capacity from centered finite difference (see Section 3.2 in
@@ -94,11 +94,6 @@ class TestDriver(SingleCrystalTestDriver):
         
         # Determine appropriate number of processors based on system size.
         number_atoms = len(atoms_new)
-        # Rule of thumb: aim for at least 500 atoms per processor for good parallel efficiency.
-        max_reasonable_cpus = max(1, min(number_cpus_per_temperature_step, number_atoms // 500))
-        if max_reasonable_cpus < number_cpus_per_temperature_step:
-            print(f"Warning: Requested {number_cpus_per_temperature_step} CPUs but system only has {number_atoms} atoms.")
-            print(f"Reducing to {max_reasonable_cpus} processors for better parallel efficiency.")
 
         # Get temperatures that should be simulated.
         temperature_step = temperature_step_fraction * temperature_K
@@ -148,7 +143,7 @@ class TestDriver(SingleCrystalTestDriver):
         # Handle cases where kim models expect different structure file formats.
         try:
             run_lammps(self.kim_model_name, 0, temperatures[0], pressure_bar, timestep,
-                       number_sampling_timesteps, species, msd_threshold, number_cpus=1, test_file_read=True)
+                       number_sampling_timesteps, species, msd_threshold, lammps_command=lammps_command, test_file_read=True)
         except subprocess.CalledProcessError as e:
             wrong_format_error = check_lammps_log_for_wrong_structure_format(
                 "output/lammps_file_format_test_temperature_0.log")
@@ -159,7 +154,7 @@ class TestDriver(SingleCrystalTestDriver):
                 write_lammps_data(structure_file, atoms_new, atom_style="charge", masses=True, units="metal")
                 # try to read the file again, raise any exeptions that might happen
                 run_lammps(self.kim_model_name, 0, temperatures[0], pressure_bar, timestep,
-                           number_sampling_timesteps, species, msd_threshold, number_cpus=1, test_file_read=True)
+                           number_sampling_timesteps, species, msd_threshold, lammps_command=lammps_command, test_file_read=True)
             else:
                 raise e
 
@@ -169,7 +164,7 @@ class TestDriver(SingleCrystalTestDriver):
             for i, t in enumerate(temperatures):
                 futures.append(executor.submit(
                     run_lammps, self.kim_model_name, i, t, pressure_bar, timestep,
-                    number_sampling_timesteps, species, msd_threshold, max_reasonable_cpus))
+                    number_sampling_timesteps, species, msd_threshold, lammps_command=lammps_command))
 
         # If one simulation fails, cancel all runs.
         for future in as_completed(futures):

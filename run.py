@@ -19,15 +19,17 @@ if __name__ == '__main__':
     prot = args.prototype
 
     # Run test
-    subprocess.run(f"kim-api-collections-management install user {model_name}", shell=True, check=True)
+    subprocess.run(f"kim-api-collections-management install user {model_name}", shell=True)
     test_driver = TestDriver(model_name)
     list_of_queried_structures = query_crystal_structures(kim_model_name=model_name,
                                                           stoichiometric_species=stoich,
                                                           prototype_label=prot)
     for i, queried_structure in enumerate(list_of_queried_structures):
-        test_driver(queried_structure, temperature_K=293.15,
-                    cell_cauchy_stress_eV_angstrom3=[-6.241509074460762e-7, -6.241509074460762e-7, -6.241509074460762e-7,
-                                                     0.0, 0.0, 0.0],
-                    temperature_step_fraction=0.01, number_symmetric_temperature_steps=1, timestep=0.001,
-                    number_sampling_timesteps=100, repeat=(0, 0, 0), max_workers=3, number_cpus_per_temperature_step=6)
-        test_driver.write_property_instances_to_file(filename=f"output/results_{i}.edn")
+        try:
+            test_driver(queried_structure, temperature_K=293.15,
+                        cell_cauchy_stress_eV_angstrom3=[0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+                        temperature_step_fraction=0.01, number_symmetric_temperature_steps=1, timestep=0.001,
+                        number_sampling_timesteps=100, repeat=(0, 0, 0), max_workers=3, lammps_command="mpirun -np 6 --bind-to none lmp")
+        except Exception as e:
+            print(f"Got exception {repr(e)}")
+    test_driver.write_property_instances_to_file()
