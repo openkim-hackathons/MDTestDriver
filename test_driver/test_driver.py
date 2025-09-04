@@ -9,7 +9,7 @@ import numpy as np
 from kim_tools import get_stoich_reduced_list_from_prototype, KIMTestDriverError
 from kim_tools.symmetry_util.core import reduce_and_avg, kstest_reduced_distances, PeriodExtensionException
 from kim_tools.test_driver import SingleCrystalTestDriver
-from .helper_functions import (check_lammps_log_for_wrong_structure_format, compute_alpha, compute_heat_capacity,
+from .helper_functions import (check_lammps_log_for_wrong_structure_format, compute_alpha_tensor, compute_heat_capacity,
                                get_cell_from_averaged_lammps_dump, get_positions_from_averaged_lammps_dump, run_lammps)
 
 
@@ -184,6 +184,7 @@ class TestDriver(SingleCrystalTestDriver):
         # Collect results and check that symmetry is unchanged after all simulations.
         log_filenames = []
         restart_filenames = []
+        all_cells = []
         middle_temperature_atoms = None
         middle_temperature = None
         for t_index, (future, t) in enumerate(zip(futures, temperatures)):
@@ -198,6 +199,7 @@ class TestDriver(SingleCrystalTestDriver):
                     if line.startswith("Crystal melted or vaporized"):
                         raise KIMTestDriverError(f"Crystal melted or vaporized during simulation at temperature {t} K.")
             atoms_new.set_cell(get_cell_from_averaged_lammps_dump(average_cell_filename))
+            all_cells.append(atoms_new.get_cell())
             atoms_new.set_scaled_positions(
                 get_positions_from_averaged_lammps_dump(average_position_filename))
             reduced_atoms, reduced_distances = reduce_and_avg(atoms_new, repeat)
@@ -237,7 +239,7 @@ class TestDriver(SingleCrystalTestDriver):
         assert middle_temperature is not None
 
         c = compute_heat_capacity(temperatures, log_filenames, 2)
-        alpha = compute_alpha(log_filenames, temperatures, self.prototype_label)
+        alpha = compute_alpha_tensor(original_atoms.get_cell(),all_cells,temperatures)
 
         # Print result.
         print('####################################')

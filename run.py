@@ -1,6 +1,6 @@
 import argparse
 import subprocess
-from kim_tools import query_crystal_structures
+from kim_tools.test_driver.core import query_crystal_structures
 from test_driver.test_driver import TestDriver
 
 
