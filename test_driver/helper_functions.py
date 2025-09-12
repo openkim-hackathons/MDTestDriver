@@ -4,23 +4,19 @@ import os
 import random
 import re
 import subprocess
-from typing import Dict, Iterable, List, Optional, Tuple
+from typing import Dict, Iterable, List, Tuple
 from ase import Atoms
-from ase.geometry import get_distances
+from ase.lattice import Cell
 import findiff
-from matplotlib.backends.backend_pdf import PdfPages
 import matplotlib.pyplot as plt
 import numpy as np
 import numpy.typing as npt
 import scipy.optimize
-from scipy.stats import kstest
-from sklearn.decomposition import PCA
-from kim_tools import KIMTestDriverError
 
 
 def run_lammps(modelname: str, temperature_index: int, temperature: float, pressure: float, timestep: float,
                number_sampling_timesteps: int, species: List[str], msd_threshold: float, lammps_command: str, 
-               test_file_read=False) -> Tuple[str, str, str, str]:
+               test_file_read=False) -> Tuple[str, str, str, str] | None:
     # Get random 31-bit unsigned integer.
     seed = random.getrandbits(31)
 
@@ -389,8 +385,8 @@ def get_center_finite_difference_and_error(diff_x: float, y_values: List[float],
     finite_difference_error_squared /= (diff_x * diff_x)
     return finite_difference, sqrt(finite_difference_error_squared)
 
-def compute_alpha_tensor(old_cell: Atoms.cell,
-                         new_cells: list[Atoms.cell],
+def compute_alpha_tensor(old_cell: Cell,
+                         new_cells: list[Cell],
                          temperatures:list[float]):
     
     dim = 3
