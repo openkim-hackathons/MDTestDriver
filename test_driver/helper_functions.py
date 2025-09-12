@@ -1,21 +1,16 @@
-import copy
-from math import ceil, sqrt
+from math import ceil
 import os
 import random
 import re
 import subprocess
-from typing import Dict, Iterable, List, Tuple
-from ase import Atoms
-from ase.lattice import Cell
-import findiff
+from typing import Iterable, List, Tuple
 import matplotlib.pyplot as plt
 import numpy as np
 import numpy.typing as npt
-import scipy.optimize
 
 
-def run_lammps(modelname: str, temperature_index: int, temperature: float, pressure: float, timestep: float,
-               number_sampling_timesteps: int, species: List[str], msd_threshold: float, lammps_command: str, 
+def run_lammps(modelname: str, temperature: float, pressure: float, timestep: float, number_sampling_timesteps: int,
+               species: List[str], msd_threshold: float, lammps_command: str,
                test_file_read=False) -> Tuple[str, str, str, str] | None:
     # Get random 31-bit unsigned integer.
     seed = random.getrandbits(31)
@@ -23,9 +18,9 @@ def run_lammps(modelname: str, temperature_index: int, temperature: float, press
     pdamp = timestep * 100.0
     tdamp = timestep * 1000.0
 
-    log_filename = f"output/lammps_temperature_{temperature_index}.log"
-    test_log_filename = f"output/lammps_file_format_test_temperature_{temperature_index}.log"
-    restart_filename = f"output/final_configuration_temperature_{temperature_index}.restart"
+    log_filename = "output/lammps.log"
+    test_log_filename = "output/lammps_file_format_test.log"
+    restart_filename = "output/final_configuration.restart"
     variables = {
         "modelname": modelname,
         "temperature": temperature,
@@ -36,10 +31,10 @@ def run_lammps(modelname: str, temperature_index: int, temperature: float, press
         "timestep": timestep,
         "number_sampling_timesteps": number_sampling_timesteps,
         "species": " ".join(species),
-        "average_position_filename": f"output/average_position_temperature_{temperature_index}.dump.*",
-        "average_cell_filename": f"output/average_cell_temperature_{temperature_index}.dump",
+        "average_position_filename": "output/average_position.dump.*",
+        "average_cell_filename": "output/average_cell.dump",
         "write_restart_filename": restart_filename,
-        "trajectory_filename": f"output/trajectory_{temperature_index}.lammpstrj",
+        "trajectory_filename": "output/trajectory.lammpstrj",
         "msd_threshold": msd_threshold
     }
 
@@ -67,13 +62,13 @@ def run_lammps(modelname: str, temperature_index: int, temperature: float, press
         # Round to next multiple of 10000.
         equilibration_time = int(ceil(equilibration_time / 10000.0)) * 10000
 
-        full_average_position_file = f"output/average_position_temperature_{temperature_index}.dump.full"
+        full_average_position_file = "output/average_position.dump.full"
         compute_average_positions_from_lammps_dump("output",
-                                                   f"average_position_temperature_{temperature_index}.dump",
+                                                   "average_position.dump",
                                                    full_average_position_file, equilibration_time)
 
-        full_average_cell_file = f"output/average_cell_temperature_{temperature_index}.dump.full"
-        compute_average_cell_from_lammps_dump(f"output/average_cell_temperature_{temperature_index}.dump",
+        full_average_cell_file = "output/average_cell.dump.full"
+        compute_average_cell_from_lammps_dump("output/average_cell.dump",
                                               full_average_cell_file, equilibration_time)
 
         return log_filename, restart_filename, full_average_position_file, full_average_cell_file
@@ -299,207 +294,6 @@ def get_cell_from_averaged_lammps_dump(filename: str) -> npt.NDArray[np.float64]
     cell[2, :] = np.array([cell_list[4], cell_list[5], cell_list[2]])
     return cell
 
-
-def compute_heat_capacity(temperatures: List[float], log_filenames: List[str],
-                          quantity_index: int) -> Dict[str, Tuple[float, float]]:
-    enthalpy_means = []
-    enthalpy_errs = []
-    for log_filename in log_filenames:
-        enthalpy_mean, enthalpy_conf = extract_mean_error_from_logfile(log_filename, quantity_index)
-        enthalpy_means.append(enthalpy_mean)
-        # Correct 95% confidence interval to standard error.
-        enthalpy_errs.append(enthalpy_conf / 1.96)
-
-    # Use finite differences to estimate derivative.
-    temperature_step = temperatures[1] - temperatures[0]
-    assert all(abs(temperatures[i + 1] - temperatures[i] - temperature_step)
-               < 1.0e-12 for i in range(len(temperatures) - 1))
-    assert len(temperatures) >= 3
-    max_accuracy = len(temperatures) - 1
-    heat_capacity = {}
-    for accuracy in range(2, max_accuracy + 1, 2):
-        heat_capacity[
-            f"finite_difference_accuracy_{accuracy}"] = get_center_finite_difference_and_error(
-            temperature_step, enthalpy_means, enthalpy_errs, accuracy)
-
-    # Use linear fit to estimate derivative.
-    heat_capacity["fit"] = get_slope_and_error(
-        temperatures, enthalpy_means, enthalpy_errs)
-
-    return heat_capacity
-
-
-def extract_mean_error_from_logfile(filename: str, quantity: int) -> Tuple[float, float]:
-    """
-    Function to extract the average from a LAAMPS log file for a given quantity
-
-    @param filename : name of file
-    @param quantity : quantity to take from
-    @return mean : reported mean value
-    """
-
-    # Get content.
-    with open(filename, "r") as file:
-        data = file.read()
-
-    # Look for print pattern.
-    exterior_pattern = r'print "\${run_var}"\s*\{(.*?)\}\s*variable run_var delete'
-    mean_pattern = r'"mean"\s*([^ ]+)'
-    error_pattern = r'"upper_confidence_limit"\s*([^ ]+)'
-    match_init = re.search(exterior_pattern, data, re.DOTALL)
-    mean_matches = re.findall(mean_pattern, match_init.group(), re.DOTALL)
-    error_matches = re.findall(error_pattern, match_init.group(), re.DOTALL)
-    if mean_matches is None:
-        raise ValueError("Mean not found")
-    if error_matches is None:
-        raise ValueError("Error not found")
-
-    # Get correct match.
-    mean = float(mean_matches[quantity])
-    error = float(error_matches[quantity])
-
-    return mean, error
-
-
-def get_slope_and_error(x_values: List[float], y_values: List[float], y_errs: List[float]):
-    popt, pcov = scipy.optimize.curve_fit(lambda x, m, b: m * x + b, x_values, y_values,
-                                          sigma=y_errs, absolute_sigma=True)
-    perr = np.sqrt(np.diag(pcov))
-    return popt[0], perr[0]
-
-
-def get_center_finite_difference_and_error(diff_x: float, y_values: List[float], y_errs: List[float],
-                                           accuracy: int) -> Tuple[float, float]:
-    assert len(y_values) == len(y_errs)
-    assert len(y_values) > accuracy
-    assert len(y_values) % 2 == 1
-    center_index = len(y_values) // 2
-    coefficients = findiff.coefficients(deriv=1, acc=accuracy)["center"]["coefficients"]
-    offsets = findiff.coefficients(deriv=1, acc=accuracy)["center"]["offsets"]
-    finite_difference = 0.0
-    finite_difference_error_squared = 0.0
-    for coefficient, offset in zip(coefficients, offsets):
-        finite_difference += coefficient * y_values[center_index + offset]
-        finite_difference_error_squared += (coefficient * y_errs[center_index + offset]) ** 2
-    finite_difference /= diff_x
-    finite_difference_error_squared /= (diff_x * diff_x)
-    return finite_difference, sqrt(finite_difference_error_squared)
-
-def compute_alpha_tensor(old_cell: Cell,
-                         new_cells: list[Cell],
-                         temperatures:list[float]):
-    
-    dim = 3
-
-    temperature_step = temperatures[1] - temperatures[0]
-    assert all(abs(temperatures[i + 1] - temperatures[i] - temperature_step)
-               < 1.0e-12 for i in range(len(temperatures) - 1))
-    assert len(temperatures) >= 3
-    max_accuracy = len(temperatures) - 1
-
-    old_cell_inverse = np.linalg.inv(old_cell)
-
-    strains=[]
-
-    # calculate the strain matrix
-    for index in range(len(temperatures)):
-
-        new_cell = new_cells[index]
-
-        # calculate the deformation matrix from the old and new cells
-        deformation = (new_cell * old_cell_inverse) - np.identity(dim)
-
-        strain = np.empty((dim,dim))
-
-        for i in range(dim):
-            for j in range(dim):
-                
-                sum_term=0
-                for k in range(dim):
-                    sum_term += deformation[k,i]*deformation[k,j]
-
-                strain[i,j]=0.5*(deformation[i,j]+deformation[j,i]+sum_term)
-        
-        strains.append(strain)
-
-    zero = {}
-    for accuracy in range(2, max_accuracy + 1, 2):
-        zero[f"finite_difference_accuracy_{accuracy}"] = [0.0, 0.0]
-
-    alpha11 = copy.deepcopy(zero)
-    alpha22 = copy.deepcopy(zero)
-    alpha33 = copy.deepcopy(zero)
-    alpha23 = copy.deepcopy(zero)
-    alpha13 = copy.deepcopy(zero)
-    alpha12 = copy.deepcopy(zero)
-
-
-    for accuracy in range(2, max_accuracy + 1, 2):
-
-        strain11_temps=[]
-        strain22_temps=[]
-        strain33_temps=[]
-        strain23_temps=[]
-        strain13_temps=[]
-        strain12_temps=[]
-
-        
-        for t in range(len(temperatures)):
-
-            strain11=strains[t][0,0]
-            strain22=strains[t][1,1]
-            strain33=strains[t][2,2]
-            strain23=strains[t][1,2]
-            strain13=strains[t][0,2]
-            strain12=strains[t][0,1]
-
-            strain11_temps.append(strain11)
-            strain22_temps.append(strain22)
-            strain33_temps.append(strain33)
-            strain23_temps.append(strain23)
-            strain13_temps.append(strain13)
-            strain12_temps.append(strain12)
-
-        # TODO: figure out how to calculate uncertianties
-        strain_errs=np.zeros(len(strain11_temps))
-
-        alpha11[f"finite_difference_accuracy_{accuracy}"] = get_center_finite_difference_and_error(temperature_step,
-                                                                                                   strain11_temps,
-                                                                                                   strain_errs,
-                                                                                                   accuracy)
-        alpha22[f"finite_difference_accuracy_{accuracy}"] = get_center_finite_difference_and_error(temperature_step,
-                                                                                                   strain22_temps,
-                                                                                                   strain_errs,
-                                                                                                   accuracy)
-        alpha33[f"finite_difference_accuracy_{accuracy}"] = get_center_finite_difference_and_error(temperature_step,
-                                                                                                   strain33_temps,
-                                                                                                   strain_errs,
-                                                                                                   accuracy)
-        alpha23[f"finite_difference_accuracy_{accuracy}"] = get_center_finite_difference_and_error(temperature_step,
-                                                                                                   strain23_temps,
-                                                                                                   strain_errs,
-                                                                                                   accuracy)
-        alpha13[f"finite_difference_accuracy_{accuracy}"] = get_center_finite_difference_and_error(temperature_step,
-                                                                                                   strain13_temps,
-                                                                                                   strain_errs,
-                                                                                                   accuracy)
-        alpha12[f"finite_difference_accuracy_{accuracy}"] = get_center_finite_difference_and_error(temperature_step,
-                                                                                                   strain12_temps,
-                                                                                                   strain_errs,
-                                                                                                   accuracy)
-
-
-    # enforce tensor symmetries
-    alpha21 = alpha12
-    alpha31 = alpha13
-    alpha32 = alpha23
-
-    alpha = np.array([[alpha11, alpha12, alpha13],
-                      [alpha21, alpha22, alpha23],
-                      [alpha31, alpha32, alpha33]])
-
-    # thermal expansion coeff tensor
-    return alpha
 
 def check_lammps_log_for_wrong_structure_format(log_file):
     wrong_format_in_structure_file = False
