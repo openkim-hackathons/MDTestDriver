@@ -1,7 +1,7 @@
 {
   "title" "Finite temperature crystal structure for {{stoichiometric_species|join("")}} in AFLOW crystal prototype {{prototype_label}} at zero pressure v000"
   "description" "Given the zero-pressure, zero-temperature structure of {{stoichiometric_species|join("")}} in AFLOW crystal prototype {{prototype_label}}, this Test computes the corresponding structure at finite temperature."
-  "extended-id" "{{TEST_DRIVER_NAME.split('_')[:-4]|join('_')}}_{{prototype_label}}_{{stoichiometric_species|join("")}}__TE_{{kimnum}}_000"
+  "extended-id" "extended-id" "{{TEST_DRIVER_NAME.split('_')[:-4]|join('_')}}_{{prototype_label}}_{{stoichiometric_species|join("")}}_{{(crystal_genome_test_args.max_volume_scale if crystal_genome_test_args is defined else 0.01)|replace('.','_')}}__TE_{{kimnum}}_{{version}}"
   "test-driver" "{{TEST_DRIVER_NAME}}"
   "species" ["{{stoichiometric_species|join('" "')}}"]
   "contributor-id" "66443d60-a76c-472c-987e-dd80fde07aae"
