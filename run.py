@@ -28,8 +28,8 @@ if __name__ == '__main__':
         try:
             test_driver(queried_structure, temperature_K=293.15,
                         cell_cauchy_stress_eV_angstrom3=[0.0, 0.0, 0.0, 0.0, 0.0, 0.0], timestep=0.001,
-                        number_sampling_timesteps=100, repeat=(0, 0, 0), msd_threshold=0.1, lammps_command="lmp",
-                        random_seed=0)
+                        number_sampling_timesteps=100, repeat=(0, 0, 0), msd_threshold=0.1,
+                        lammps_command="lmp", random_seed=1)
         except Exception as e:
             print(f"Got exception {repr(e)}")
     test_driver.write_property_instances_to_file()
