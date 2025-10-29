@@ -1,6 +1,5 @@
 from math import ceil
 import os
-import random
 import re
 import subprocess
 from typing import Iterable, List, Tuple
@@ -10,10 +9,8 @@ import numpy.typing as npt
 
 
 def run_lammps(modelname: str, temperature: float, pressure: float, timestep: float, number_sampling_timesteps: int,
-               species: List[str], msd_threshold: float, lammps_command: str) -> Tuple[str, str, str, str] | None:
-    # Get random 31-bit unsigned integer.
-    seed = random.getrandbits(31)
-
+               species: List[str], msd_threshold: float, lammps_command: str,
+               random_seed: int) -> Tuple[str, str, str, str] | None:
     pdamp = timestep * 100.0
     tdamp = timestep * 1000.0
 
@@ -22,7 +19,7 @@ def run_lammps(modelname: str, temperature: float, pressure: float, timestep: fl
     variables = {
         "modelname": modelname,
         "temperature": temperature,
-        "temperature_seed": seed,
+        "temperature_seed": random_seed,
         "temperature_damping": tdamp,
         "pressure": pressure,
         "pressure_damping": pdamp,

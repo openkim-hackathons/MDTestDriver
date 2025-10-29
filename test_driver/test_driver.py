@@ -11,7 +11,7 @@ from .helper_functions import get_cell_from_averaged_lammps_dump, get_positions_
 
 class TestDriver(SingleCrystalTestDriver):
     def _calculate(self, timestep: float, number_sampling_timesteps: int = 100, repeat: Sequence[int] = (3, 3, 3),
-                   lammps_command = "lmp", msd_threshold: float = 0.1, **kwargs) -> None:
+                   lammps_command = "lmp", msd_threshold: float = 0.1, random_seed: int = 0, **kwargs) -> None:
         """
         Compute crystal structure at constant pressure and temperature (NPT).
         """
@@ -112,7 +112,7 @@ class TestDriver(SingleCrystalTestDriver):
         # Run single Lammps simulation.
         log_filename, restart_filename, average_position_filename, average_cell_filename = run_lammps(
             self.kim_model_name, temperature_K, pressure_bar, timestep, number_sampling_timesteps, species,
-            msd_threshold, lammps_command=lammps_command)
+            msd_threshold, lammps_command=lammps_command, random_seed=random_seed)
 
         # Check that crystal did not melt or vaporize.
         with open(log_filename, "r") as f:
