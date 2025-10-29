@@ -1,15 +1,12 @@
 import os
 import shutil
-import subprocess
 from typing import Sequence
-from ase.io.lammpsdata import write_lammps_data
 from ase.calculators.lammps import convert, Prism
 import numpy as np
 from kim_tools import KIMTestDriverError
 from kim_tools.symmetry_util.core import reduce_and_avg, kstest_reduced_distances, PeriodExtensionException
 from kim_tools.test_driver import SingleCrystalTestDriver
-from .helper_functions import (check_lammps_log_for_wrong_structure_format,
-                               get_cell_from_averaged_lammps_dump, get_positions_from_averaged_lammps_dump, run_lammps)
+from .helper_functions import get_cell_from_averaged_lammps_dump, get_positions_from_averaged_lammps_dump, run_lammps
 
 
 class TestDriver(SingleCrystalTestDriver):
@@ -56,9 +53,6 @@ class TestDriver(SingleCrystalTestDriver):
 
         # Get pressure from cauchy stress tensor.
         pressure_bar = -cell_cauchy_stress_bar[0]
-        
-        # Copy original atoms so that their information does not get lost.
-        original_atoms = self._get_atoms().copy()
 
         # Create atoms object that will contain the supercell.
         atoms_new = self._get_atoms().copy()
@@ -82,7 +76,6 @@ class TestDriver(SingleCrystalTestDriver):
         test_driver_directory = os.path.dirname(os.path.realpath(__file__))
         if os.getcwd() != test_driver_directory:
             shutil.copyfile(os.path.join(test_driver_directory, "npt.lammps"), "npt.lammps")
-            shutil.copyfile(os.path.join(test_driver_directory, "file_read_test.lammps"), "file_read_test.lammps")
             shutil.copyfile(os.path.join(test_driver_directory, "run_length_control.py"), "run_length_control.py")
         # Choose the correct accuracies file for kim-convergence based on whether the cell is orthogonal or not.
         with open("accuracies.py", "w") as file:
@@ -113,36 +106,13 @@ class TestDriver(SingleCrystalTestDriver):
 
         # Write lammps file.
         structure_file = "output/zero_temperature_crystal.lmp"
-        atoms_new.write(structure_file, format="lammps-data", masses=True, units="metal")
-
-        # Handle cases where kim models expect different structure file formats.
-        try:
-            run_lammps(self.kim_model_name, temperature_K, pressure_bar, timestep, number_sampling_timesteps, species,
-                       msd_threshold, lammps_command=lammps_command, test_file_read=True)
-        except subprocess.CalledProcessError as e:
-            wrong_format_error = check_lammps_log_for_wrong_structure_format(
-                "output/lammps_file_format_test_temperature_0.log")
-
-            if wrong_format_error:
-                # write the atom configuration file in the 'charge' format some models expect
-                #assign_charges(atoms_new)
-                write_lammps_data(structure_file, atoms_new, atom_style="charge", masses=True, units="metal")
-                # try to read the file again, raise any exeptions that might happen
-                run_lammps(self.kim_model_name, temperature_K, pressure_bar, timestep, number_sampling_timesteps,
-                           species, msd_threshold, lammps_command=lammps_command, test_file_read=True)
-            else:
-                raise e
+        atom_style = self._get_supported_lammps_atom_style()
+        atoms_new.write(structure_file, format="lammps-data", masses=True, units="metal", atom_style=atom_style)
 
         # Run single Lammps simulation.
         log_filename, restart_filename, average_position_filename, average_cell_filename = run_lammps(
             self.kim_model_name, temperature_K, pressure_bar, timestep, number_sampling_timesteps, species,
-            msd_threshold, lammps_command=lammps_command, test_file_read=False)
-
-        # Cleanup.
-        if os.getcwd() != test_driver_directory:
-            os.remove("npt.lammps")
-            os.remove("file_read_test.lammps")
-            os.remove("run_length_control.py")
+            msd_threshold, lammps_command=lammps_command)
 
         # Check that crystal did not melt or vaporize.
         with open(log_filename, "r") as f:

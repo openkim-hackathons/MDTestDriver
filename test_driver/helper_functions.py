@@ -10,8 +10,7 @@ import numpy.typing as npt
 
 
 def run_lammps(modelname: str, temperature: float, pressure: float, timestep: float, number_sampling_timesteps: int,
-               species: List[str], msd_threshold: float, lammps_command: str,
-               test_file_read=False) -> Tuple[str, str, str, str] | None:
+               species: List[str], msd_threshold: float, lammps_command: str) -> Tuple[str, str, str, str] | None:
     # Get random 31-bit unsigned integer.
     seed = random.getrandbits(31)
 
@@ -19,7 +18,6 @@ def run_lammps(modelname: str, temperature: float, pressure: float, timestep: fl
     tdamp = timestep * 1000.0
 
     log_filename = "output/lammps.log"
-    test_log_filename = "output/lammps_file_format_test.log"
     restart_filename = "output/final_configuration.restart"
     variables = {
         "modelname": modelname,
@@ -38,40 +36,30 @@ def run_lammps(modelname: str, temperature: float, pressure: float, timestep: fl
         "msd_threshold": msd_threshold
     }
 
-    if test_file_read:
-        # do a minimal test to see if the model can read the structure file
-        # write to a seperate log file to avoid overwriting data
-        command = (
-                f"{lammps_command} "
-                + " ".join(f"-var {key} '{item}'" for key, item in variables.items())
-                + f" -log {test_log_filename}"
-                + " -in file_read_test.lammps")
-        subprocess.run(command, check=True, shell=True)
-    else:
-        command = (
-                f"{lammps_command} "
-                + " ".join(f"-var {key} '{item}'" for key, item in variables.items())
-                + f" -log {log_filename}"
-                + " -in npt.lammps")
-        
-        subprocess.run(command, check=True, shell=True)
+    command = (
+            f"{lammps_command} "
+            + " ".join(f"-var {key} '{item}'" for key, item in variables.items())
+            + f" -log {log_filename}"
+            + " -in npt.lammps")
 
-        plot_property_from_lammps_log(log_filename, ("v_vol_metal", "v_temp_metal", "v_enthalpy_metal"))
+    subprocess.run(command, check=True, shell=True)
 
-        equilibration_time = extract_equilibration_step_from_logfile(log_filename)
-        # Round to next multiple of 10000.
-        equilibration_time = int(ceil(equilibration_time / 10000.0)) * 10000
+    plot_property_from_lammps_log(log_filename, ("v_vol_metal", "v_temp_metal", "v_enthalpy_metal"))
 
-        full_average_position_file = "output/average_position.dump.full"
-        compute_average_positions_from_lammps_dump("output",
-                                                   "average_position.dump",
-                                                   full_average_position_file, equilibration_time)
+    equilibration_time = extract_equilibration_step_from_logfile(log_filename)
+    # Round to next multiple of 10000.
+    equilibration_time = int(ceil(equilibration_time / 10000.0)) * 10000
 
-        full_average_cell_file = "output/average_cell.dump.full"
-        compute_average_cell_from_lammps_dump("output/average_cell.dump",
-                                              full_average_cell_file, equilibration_time)
+    full_average_position_file = "output/average_position.dump.full"
+    compute_average_positions_from_lammps_dump("output",
+                                               "average_position.dump",
+                                               full_average_position_file, equilibration_time)
 
-        return log_filename, restart_filename, full_average_position_file, full_average_cell_file
+    full_average_cell_file = "output/average_cell.dump.full"
+    compute_average_cell_from_lammps_dump("output/average_cell.dump",
+                                          full_average_cell_file, equilibration_time)
+
+    return log_filename, restart_filename, full_average_position_file, full_average_cell_file
 
 
 def plot_property_from_lammps_log(in_file_path: str, property_names: Iterable[str]) -> None:
