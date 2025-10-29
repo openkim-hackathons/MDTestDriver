@@ -125,7 +125,7 @@ class TestDriver(SingleCrystalTestDriver):
         atoms_new.set_scaled_positions(
             get_positions_from_averaged_lammps_dump(average_position_filename))
         try:
-            reduced_atoms, reduced_distances = reduce_and_avg(atoms_new, repeat)
+            reduced_atoms = reduce_and_avg(atoms_new, repeat)
         except PeriodExtensionException as e:
             atoms_new.write(f"output/final_configuration_failing.poscar",
                             format="vasp", sort=True)
