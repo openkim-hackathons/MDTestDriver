@@ -10,7 +10,49 @@ import numpy.typing as npt
 
 def run_lammps(modelname: str, temperature: float, pressure: float, timestep: float, number_sampling_timesteps: int,
                species: List[str], msd_threshold: float, lammps_command: str,
-               random_seed: int) -> Tuple[str, str, str, str] | None:
+               random_seed: int) -> Tuple[str, str, str, str]:
+    """
+    Run LAMMPS NPT simulation with the given parameters.
+
+    After the simulation, this function plots the thermodynamic properties (volume, temperature, enthalpy).
+
+    This function also processes the LAMMPS log file to extract equilibration information based on kim_convergence.
+    It then computes the average atomic positions and cell parameters during the molecular-dynamics simulation, only
+    considering data after equilibration.
+
+    :param modelname:
+        Name of the OpenKIM interatomic model.
+    :type modelname: str
+    :param temperature:
+        Target temperature in Kelvin.
+    :type temperature: float
+    :param pressure:
+        Target pressure in bars.
+    :type pressure: float
+    :param timestep:
+        Timestep in picoseconds.
+    :type timestep: float
+    :param number_sampling_timesteps:
+        Number of timesteps for sampling thermodynamic quantities.
+    :type number_sampling_timesteps: int
+    :param species:
+        List of chemical species in the system.
+    :type species: List[str]
+    :param msd_threshold:
+        Mean squared displacement threshold for vaporization in Angstroms^2 per number_sampling_timesteps*timestep.
+    :type msd_threshold: float
+    :param lammps_command:
+        Command to run LAMMPS (e.g., "mpirun -np 4 lmp_mpi" or "lmp").
+    :type lammps_command: str
+    :param random_seed:
+        Random seed for velocity initialization.
+    :type random_seed: int
+
+    :return:
+        A tuple containing paths to the LAMMPS log file, restart file, full average position file, and full average cell
+        file.
+    :rtype: Tuple[str, str, str, str]
+    """
     pdamp = timestep * 100.0
     tdamp = timestep * 1000.0
 
@@ -61,12 +103,18 @@ def run_lammps(modelname: str, temperature: float, pressure: float, timestep: fl
 
 def plot_property_from_lammps_log(in_file_path: str, property_names: Iterable[str]) -> None:
     """
-    The function to get the value of the property with time from ***.log
-    the extracted data are stored as ***.csv and ploted as property_name.png
-    data_dir --- the directory contains lammps_equilibration.log
-    property_names --- the list of properties
-    """
+    Extract and plot thermodynamic properties from the given Lammps log file.
 
+    The extracted data is stored in a csv file with the same name as the log file but with a .csv extension.
+    The plots of the specified properties against time are saved as property_name.png files.
+
+    :param in_file_path:
+        Path to the Lammps log file.
+    :type in_file_path: str
+    :param property_names:
+        Iterable of thermodynamic property names to plot.
+    :type property_names: Iterable[str]
+    """
     def get_table(in_file):
         if not os.path.isfile(in_file):
             raise FileNotFoundError(in_file + " not found")
@@ -127,6 +175,17 @@ def plot_property_from_lammps_log(in_file_path: str, property_names: Iterable[st
 
 
 def extract_equilibration_step_from_logfile(filename: str) -> int:
+    """
+    Extract the kim_convergence equilibration step from LAMMPS log file.
+
+    :param filename:
+        Path to the LAMMPS log file.
+    :type filename: str
+
+    :return:
+        The equilibration step as an integer.
+    :rtype: int
+    """
     # Get file content.
     with open(filename, 'r') as file:
         data = file.read()
@@ -146,24 +205,28 @@ def extract_equilibration_step_from_logfile(filename: str) -> int:
 def compute_average_positions_from_lammps_dump(data_dir: str, file_str: str, output_filename: str,
                                                skip_steps: int) -> None:
     """
-    This function compute the average position over *.dump files which contains the file_str in data_dir and output it
-    to data_dir/[file_str]_over_dump.out
+    Average atomic positions over multiple LAMMPS dump files.
 
-    input:
-    data_dir -- the directory contains all the data e.g average_position.dump.* files
-    file_str -- the files whose names contain the file_str are considered
-    output_filename -- the name of the output file
-    skip_steps -- dump files with steps <= skip_steps are ignored
+    Within the given data directory, this function searches for dump files that start with the specified file string.
+    After the filename, every dump file should end with a step number, e.g., average_position.dump.10000,
+    average_position.dump.20000, etc. The function computes the average atomic positions across all these files,
+    ignoring any files with step numbers less than or equal to the specified skip_steps. The resulting average
+    positions are then written to the specified output file.
+
+    :param data_dir:
+        Directory containing the LAMMPS dump files.
+    :type data_dir: str
+    :param file_str:
+        String that the dump files start with.
+    :type file_str: str
+    :param output_filename:
+        Name of the output file to store the average positions.
+    :type output_filename: str
+    :param skip_steps:
+        Step number threshold; dump files with steps less than or equal to this value are ignored.
+    :type skip_steps: int
     """
-
     def get_id_pos_dict(file_name):
-        '''
-        input:
-        file_name--the file_name that contains average postion data
-        output:
-        the dictionary contains id:position pairs e.g {1:array([x1,y1,z1]),2:array([x2,y2,z2])}
-        for the averaged positions over files
-        '''
         id_pos_dict = {}
         header4N = ["NUMBER OF ATOMS"]
         header4pos = ["id", "f_avePos[1]", "f_avePos[2]", "f_avePos[3]"]
@@ -247,6 +310,23 @@ def compute_average_positions_from_lammps_dump(data_dir: str, file_str: str, out
 
 
 def compute_average_cell_from_lammps_dump(input_file: str, output_file: str, skip_steps: int) -> None:
+    """
+    Average the cell from the given input file.
+
+    This function computes the average cell across a LAMMPS dump file containing the cell information over time,
+    ignoring any cell information at step numbers less than or equal to the specified skip_steps. The resulting average
+    cell is then written to the specified output file.
+
+    :param input_file:
+        Path to the LAMMPS dump file containing cell information.
+    :type input_file: str
+    :param output_file:
+        Name of the output file to store the average cell.
+    :type output_file: str
+    :param skip_steps:
+        Step number threshold; dump files with steps less than or equal to this value are ignored.
+    :type skip_steps: int
+    """
     with open(input_file, "r") as f:
         f.readline()  # Skip the first line.
         header = f.readline()
@@ -266,11 +346,33 @@ def compute_average_cell_from_lammps_dump(input_file: str, output_file: str, ski
 
 
 def get_positions_from_averaged_lammps_dump(filename: str) -> List[Tuple[float, float, float]]:
+    """
+    Helper function to extract positions from the averaged LAMMPS dump file.
+
+    :param filename:
+        Path to the averaged LAMMPS dump file.
+    :type filename: str
+
+    :return:
+        A list of tuples representing the (x, y, z) positions of atoms.
+    :rtype: List[Tuple[float, float, float]]
+    """
     lines = sorted(np.loadtxt(filename, skiprows=9).tolist(), key=lambda x: x[0])
     return [(line[1], line[2], line[3]) for line in lines]
 
 
 def get_cell_from_averaged_lammps_dump(filename: str) -> npt.NDArray[np.float64]:
+    """
+    Helper function to extract the cell from the averaged LAMMPS dump file.
+
+    :param filename:
+        Path to the averaged LAMMPS dump file.
+    :type filename: str
+
+    :return:
+        A 3x3 numpy array representing the cell vectors.
+    :rtype: npt.NDArray[np.float64]
+    """
     cell_list = np.loadtxt(filename, comments='#')
     assert len(cell_list) == 6
     cell = np.empty(shape=(3, 3))
@@ -278,20 +380,3 @@ def get_cell_from_averaged_lammps_dump(filename: str) -> npt.NDArray[np.float64]
     cell[1, :] = np.array([cell_list[3], cell_list[1], 0.0])
     cell[2, :] = np.array([cell_list[4], cell_list[5], cell_list[2]])
     return cell
-
-
-def check_lammps_log_for_wrong_structure_format(log_file):
-    wrong_format_in_structure_file = False
-
-    try:
-        with open(log_file, "r") as logfile:
-            data = logfile.read()
-            data = data.split("\n")
-            final_line = data[-2]
-
-            if final_line == "Last command: read_data output/zero_temperature_crystal.lmp":
-                wrong_format_in_structure_file = True
-    except FileNotFoundError:
-        pass
-
-    return wrong_format_in_structure_file
