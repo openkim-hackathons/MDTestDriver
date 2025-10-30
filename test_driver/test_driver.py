@@ -13,7 +13,58 @@ class TestDriver(SingleCrystalTestDriver):
     def _calculate(self, timestep: float, number_sampling_timesteps: int = 100, repeat: Sequence[int] = (0, 0, 0),
                    lammps_command = "lmp", msd_threshold: float = 0.1, random_seed: int = 1, **kwargs) -> None:
         """
-        Compute crystal structure at constant pressure and temperature (NPT).
+        Compute crystal structure at constant pressure and temperature (NPT) with a Lammps molecular-dynamics simulation.
+
+        This test driver repeats the unit cell to build a supercell and then runs a molecular-dynamics simulation in the
+        NPT ensemble using Lammps.
+
+        This test driver uses kim_convergence to detect an equilibrated molecular-dynamics simulation. It checks
+        convergence of the volume, temperature, enthalpy and cell shape parameters every 10000 timesteps.
+
+        After the molecular-dynamics simulation, the symmetry of the structure is checked to ensure that it did not
+        change.
+
+        The crystal might melt or vaporize during the simulation. In that case, kim_convergence would only detect
+        equilibration after an unnecessarily long simulation. Therefore, we initially check for melting or vaporization
+        during a short initial simulation of 5000 timesteps. During this run, we monitor the mean-squared displacement
+        (MSD) of atoms during the simulation. If the MSD exceeds a given threshold value (msd_threshold), an error is
+        raised.
+
+        :param timestep:
+            Time step in picoseconds.
+            Should be bigger than zero.
+        :type timestep: float
+        :param number_sampling_timesteps:
+            Sample thermodynamic variables every number_sampling_timesteps timesteps in Lammps.
+            Should be bigger than zero.
+        :type number_sampling_timesteps: int
+        :param repeat:
+            Tuple of three integers specifying how often to repeat the unit cell in each direction to build the
+            supercell.
+            If (0, 0, 0) is given, a supercell size close to 10,000 atoms is chosen.
+            Default is (0, 0, 0).
+            All entries have to be bigger than zero.
+        :type repeat: Sequence[int]
+        :param lammps_command:
+            Command to run Lammps.
+            Default is "lmp".
+        :type lammps_command: str
+        :param msd_threshold:
+            Mean-squared displacement threshold in Angstroms^2 per 100*timestep to detect melting or vaporization.
+            Default is 0.1.
+            Should be bigger than zero.
+        :type msd_threshold: float
+        :param random_seed:
+            Random seed for Lammps simulation.
+            Default is 1.
+            Should be bigger than zero.
+        :type random_seed: int
+
+        :raises ValueError:
+            If any of the input arguments are invalid.
+        :raises KIMTestDriverError:
+            If the crystal melts or vaporizes during the simulation.
+            If the symmetry of the structure changes.
         """
         # Set prototype label
         self.prototype_label = self._get_nominal_crystal_structure_npt()["prototype-label"]["source-value"]
@@ -26,21 +77,24 @@ class TestDriver(SingleCrystalTestDriver):
 
         # Check arguments.
         if not temperature_K > 0.0:
-            raise RuntimeError("Temperature has to be larger than zero.")
+            raise ValueError("Temperature has to be larger than zero.")
 
         if not len(cell_cauchy_stress_bar) == 6:
-            raise RuntimeError("Specify all six (x, y, z, xy, xz, yz) entries of the cauchy stress tensor.")
+            raise ValueError("Specify all six (x, y, z, xy, xz, yz) entries of the cauchy stress tensor.")
 
         if not (cell_cauchy_stress_bar[0] == cell_cauchy_stress_bar[1] == cell_cauchy_stress_bar[2]):
-            raise RuntimeError("The diagonal entries of the stress tensor have to be equal so that a hydrostatic "
-                               "pressure is used.")
+            raise ValueError("The diagonal entries of the stress tensor have to be equal so that a hydrostatic "
+                             "pressure is used.")
 
         if not (cell_cauchy_stress_bar[3] == cell_cauchy_stress_bar[4] == cell_cauchy_stress_bar[5] == 0.0):
-            raise RuntimeError("The off-diagonal entries of the stress tensor have to be zero so that a hydrostatic "
-                               "pressure is used.")
+            raise ValueError("The off-diagonal entries of the stress tensor have to be zero so that a hydrostatic "
+                             "pressure is used.")
+
+        if not timestep > 0.0:
+            raise ValueError("Timestep has to be larger than zero.")
 
         if not number_sampling_timesteps > 0:
-            raise RuntimeError("Number of timesteps between sampling in Lammps has to be bigger than zero.")
+            raise ValueError("Number of timesteps between sampling in Lammps has to be bigger than zero.")
 
         if not len(repeat) == 3:
             raise RuntimeError("The repeat argument has to be a tuple of three integers.")
@@ -50,6 +104,9 @@ class TestDriver(SingleCrystalTestDriver):
 
         if not msd_threshold > 0.0:
             raise RuntimeError("The mean-squared displacement threshold has to be bigger than zero.")
+
+        if not random_seed > 0:
+            raise RuntimeError("The random seed has to be bigger than zero.")
 
         # Get pressure from cauchy stress tensor.
         pressure_bar = -cell_cauchy_stress_bar[0]
