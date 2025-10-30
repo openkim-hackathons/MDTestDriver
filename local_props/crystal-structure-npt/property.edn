@@ -1,16 +1,13 @@
 {
-  "property-id" "tag:staff@noreply.openkim.org,2024-03-11:property/heat-capacity-npt"
+  "property-id" "tag:staff@noreply.openkim.org,2024-03-11:property/crystal-structure-npt"
 
-  "property-title" "Heat capacity of crystal at NPT"
+  "property-title" "NPT Crystal Structure"
 
-  "property-description" "Heat capacity of a crystal calculated at constant pressure.
-  This is computed from NPT simulations by finite difference, using kim-convergence
-  for convergence verification."
+  "property-description" "Crystal structure after a NPT simulation with a fixed number N of atoms at constant pressure P and constant temperature T."
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ; CHANGE THE SECTION BELOW WHEN CREATING NEW PROPERTIES
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ; END OF NEW FIELDS TO DEFINE
