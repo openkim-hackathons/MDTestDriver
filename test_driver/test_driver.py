@@ -30,6 +30,8 @@ class TestDriver(SingleCrystalTestDriver):
         (MSD) of atoms during the simulation. If the MSD exceeds a given threshold value (msd_threshold), an error is
         raised.
 
+        All output files are written to the "output" directory.
+
         :param timestep:
             Time step in picoseconds.
             Should be bigger than zero.
@@ -65,6 +67,7 @@ class TestDriver(SingleCrystalTestDriver):
         :raises KIMTestDriverError:
             If the crystal melts or vaporizes during the simulation.
             If the symmetry of the structure changes.
+            If the output directory "output" does not exist.
         """
         # Set prototype label
         self.prototype_label = self._get_nominal_crystal_structure_npt()["prototype-label"]["source-value"]
@@ -128,8 +131,9 @@ class TestDriver(SingleCrystalTestDriver):
 
         atoms_new = atoms_new.repeat(repeat)
 
-        # Create output directory for all data files and copy over necessary files.
-        os.makedirs("output", exist_ok=True)
+        # Make sure output directory for all data files exists and copy over necessary files.
+        if not os.path.exists("output"):
+            raise KIMTestDriverError("Output directory 'output' does not exist.")
         test_driver_directory = os.path.dirname(os.path.realpath(__file__))
         if os.getcwd() != test_driver_directory:
             shutil.copyfile(os.path.join(test_driver_directory, "npt.lammps"), "npt.lammps")
