@@ -35,10 +35,12 @@ class TestDriver(SingleCrystalTestDriver):
 
         :param timestep_ps:
             Time step in picoseconds.
+            Default is 0.001 ps (1 fs).
             Should be bigger than zero.
         :type timestep_ps: float
         :param number_sampling_timesteps:
             Sample thermodynamic variables every number_sampling_timesteps timesteps in Lammps.
+            Default is 100 timesteps.
             Should be bigger than zero.
         :type number_sampling_timesteps: int
         :param repeat:
