@@ -101,16 +101,16 @@ class TestDriver(SingleCrystalTestDriver):
             raise ValueError("Number of timesteps between sampling in Lammps has to be bigger than zero.")
 
         if not len(repeat) == 3:
-            raise RuntimeError("The repeat argument has to be a tuple of three integers.")
+            raise ValueError("The repeat argument has to be a tuple of three integers.")
 
         if not all(r >= 0 for r in repeat):
-            raise RuntimeError("All number of repeats must be bigger than zero.")
+            raise ValueError("All number of repeats must be bigger than zero.")
 
         if not msd_threshold_angstrom_squared_per_hundred_timesteps > 0.0:
-            raise RuntimeError("The mean-squared displacement threshold has to be bigger than zero.")
+            raise ValueError("The mean-squared displacement threshold has to be bigger than zero.")
 
         if not random_seed > 0:
-            raise RuntimeError("The random seed has to be bigger than zero.")
+            raise ValueError("The random seed has to be bigger than zero.")
 
         # Get pressure from cauchy stress tensor.
         pressure_bar = -cell_cauchy_stress_bar[0]
@@ -205,8 +205,7 @@ class TestDriver(SingleCrystalTestDriver):
         self._update_nominal_parameter_values(reduced_atoms)
         self._add_property_instance_and_common_crystal_genome_keys("crystal-structure-npt", write_stress=True,
                                                                    write_temp=temperature_K)
-        self._add_file_to_current_property_instance("restart-file",
-                                                    "output/final_configuration.restart")
+        self._add_file_to_current_property_instance("restart-file", restart_filename)
 
         print('####################################')
         print('# NPT Crystal Structure Results #')
