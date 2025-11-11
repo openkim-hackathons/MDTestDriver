@@ -24,12 +24,12 @@ if __name__ == '__main__':
     list_of_queried_structures = query_crystal_structures(kim_model_name=model_name,
                                                           stoichiometric_species=stoich,
                                                           prototype_label=prot)
+
     for i, queried_structure in enumerate(list_of_queried_structures):
         try:
             test_driver(queried_structure, temperature_K=293.15,
-                        cell_cauchy_stress_eV_angstrom3=[0.0, 0.0, 0.0, 0.0, 0.0, 0.0], timestep=0.001,
-                        number_sampling_timesteps=100, repeat=(4, 4, 4), msd_threshold=0.1,
-                        lammps_command="mpirun -np 4 lmp_mpi", random_seed=1)
+                        repeat=(4, 4, 4),
+                        lammps_command="mpirun -np 4 lmp_mpi")
         except Exception as e:
             print(f"Got exception {repr(e)}")
     test_driver.write_property_instances_to_file()
