@@ -1,5 +1,5 @@
 python run.py -m EAM_Dynamo_ErcolessiAdams_1994_Al__MO_123629422045_006 -p A_cF4_225_a -s Al
-python run.py -m EAM_Dynamo_AcklandMendelevSrolovitz_2004_FeP__MO_884343146310_005 -p A2B_hP9_189_fg_ad -s Fe P
+python run.py -m EAM_Dynamo_AcklandMendelevSrolovitz_2004_FeP__MO_884343146310_006 -p A2B_hP9_189_fg_ad -s Fe P
 python run.py -m Tersoff_LAMMPS_MunetohMotookaMoriguchi_2007_SiO__MO_501246546792_000 -p A2B_hP9_154_c_a -s O Si
 python run.py -m MEAM_LAMMPS_JeongParkDo_2018_PdAl__MO_616482358807_002 -p AB_hR26_148_a2f_b2f -s Al Pd
 python run.py -m Sim_LAMMPS_Buckingham_MatsuiAkaogi_1991_TiO__SM_690504433912_000 -p A2B_tP6_136_f_a -s O Ti

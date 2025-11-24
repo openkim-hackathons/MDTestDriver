@@ -73,7 +73,8 @@ def run_lammps(modelname: str, temperature_K: float, pressure_bar: float, timest
         "average_cell_filename": "output/average_cell.dump",
         "write_restart_filename": restart_filename,
         "trajectory_filename": "output/trajectory.lammpstrj",
-        "msd_threshold": msd_threshold_angstrom_squared_per_hundred_timesteps
+        "msd_threshold": msd_threshold_angstrom_squared_per_hundred_timesteps,
+	    "melted_crystal_output": "output/melted_crystal.dump"
     }
 
     command = (
