@@ -270,13 +270,11 @@ def compute_average_positions_from_lammps_dump(data_dir: str, file_str: str, out
     # Extract and store all the data.
     pos_list = []
     max_step, last_step_file = -1, ""
-    print("SKIP STEPS: " + str(skip_steps))
     for file_name in os.listdir(data_dir):
         if file_str in file_name:
             step = int(re.findall(r'\d+', file_name)[-1])
             if step <= skip_steps:
                 continue
-            print("Processing file: " + file_name)
             file_path = os.path.join(data_dir, file_name)
             id_pos_dict = get_id_pos_dict(file_path)
             id_pos = sorted(id_pos_dict.items())
