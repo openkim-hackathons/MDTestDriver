@@ -86,7 +86,8 @@ def run_lammps(modelname: str, temperature_K: float, pressure_bar: float, timest
 
     plot_property_from_lammps_log(log_filename, ("v_vol_metal", "v_temp_metal", "v_enthalpy_metal"))
 
-    equilibration_time = extract_equilibration_step_from_logfile(log_filename)
+    # 10000 offset from MSD detection during which kim_convergence was not used.
+    equilibration_time = extract_equilibration_step_from_logfile(log_filename) + 10000
     # Round to next multiple of 10000.
     equilibration_time = int(ceil(equilibration_time / 10000.0)) * 10000
 
@@ -268,11 +269,13 @@ def compute_average_positions_from_lammps_dump(data_dir: str, file_str: str, out
     # Extract and store all the data.
     pos_list = []
     max_step, last_step_file = -1, ""
+    print("SKIP STEPS: " + str(skip_steps))
     for file_name in os.listdir(data_dir):
         if file_str in file_name:
             step = int(re.findall(r'\d+', file_name)[-1])
             if step <= skip_steps:
                 continue
+            print("Processing file: " + file_name)
             file_path = os.path.join(data_dir, file_name)
             id_pos_dict = get_id_pos_dict(file_path)
             id_pos = sorted(id_pos_dict.items())
