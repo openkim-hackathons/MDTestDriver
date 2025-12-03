@@ -11,8 +11,8 @@ from .helper_functions import get_cell_from_averaged_lammps_dump, get_positions_
 
 class TestDriver(SingleCrystalTestDriver):
     def _calculate(self, timestep_ps: float = 0.001, number_sampling_timesteps: int = 100, repeat: Sequence[int] = (0, 0, 0),
-                   lammps_command = "lmp", msd_threshold_angstrom_squared_per_hundred_timesteps: float = 0.1,
-                   random_seed: int = 1, **kwargs) -> None:
+                   lammps_command = "lmp", msd_threshold_angstrom_squared_per_sampling_timesteps: float = 0.1,
+                   number_msd_timesteps: int = 5000, random_seed: int = 1, **kwargs) -> None:
         """
         Compute crystal structure at constant pressure and temperature (NPT) with a Lammps molecular-dynamics simulation.
 
@@ -27,9 +27,9 @@ class TestDriver(SingleCrystalTestDriver):
 
         The crystal might melt or vaporize during the simulation. In that case, kim_convergence would only detect
         equilibration after an unnecessarily long simulation. Therefore, we initially check for melting or vaporization
-        during a short initial simulation of 5000 timesteps. During this run, we monitor the mean-squared displacement
-        (MSD) of atoms during the simulation. If the MSD exceeds a given threshold value (msd_threshold), an error is
-        raised.
+        during a short initial simulation. During this run, we monitor the mean-squared displacement (MSD) of atoms
+        during the simulation. If the MSD exceeds a given threshold value
+        (msd_threshold_angstrom_squared_per_sampling_timesteps), an error is raised.
 
         All output files are written to the "output" directory.
 
@@ -54,11 +54,18 @@ class TestDriver(SingleCrystalTestDriver):
             Command to run Lammps.
             Default is "lmp".
         :type lammps_command: str
-        :param msd_threshold_angstrom_squared_per_hundred_timesteps:
-            Mean-squared displacement threshold in Angstroms^2 per 100*timestep to detect melting or vaporization.
+        :param msd_threshold_angstrom_squared_per_sampling_timesteps:
+            Mean-squared displacement threshold in Angstroms^2 per number_sampling_timesteps to detect melting or
+            vaporization.
             Default is 0.1.
             Should be bigger than zero.
-        :type msd_threshold_angstrom_squared_per_hundred_timesteps: float
+        :type msd_threshold_angstrom_squared_per_sampling_timesteps: float
+        :param number_msd_timesteps:
+            Number of timesteps to monitor the mean-squared displacement in Lammps.
+            Before the mean-squared displacement is monitored, the system will be equilibrated for the same number of
+            timesteps.
+            Default is 5000 timesteps.
+            Should be bigger than zero and a multiple of number_sampling_timesteps.
         :param random_seed:
             Random seed for Lammps simulation.
             Default is 1.
@@ -108,8 +115,16 @@ class TestDriver(SingleCrystalTestDriver):
         if not all(r >= 0 for r in repeat):
             raise ValueError("All number of repeats must be bigger than zero.")
 
-        if not msd_threshold_angstrom_squared_per_hundred_timesteps > 0.0:
+        if not msd_threshold_angstrom_squared_per_sampling_timesteps > 0.0:
             raise ValueError("The mean-squared displacement threshold has to be bigger than zero.")
+
+        if not number_msd_timesteps > 0:
+            raise ValueError("The number of timesteps to monitor the mean-squared displacement has to be bigger than "
+                             "zero.")
+
+        if not number_msd_timesteps % number_sampling_timesteps == 0:
+            raise ValueError("The number of timesteps to monitor the mean-squared displacement has to be a multiple of "
+                             "the number of sampling timesteps.")
 
         if not random_seed > 0:
             raise ValueError("The random seed has to be bigger than zero.")
@@ -176,8 +191,8 @@ class TestDriver(SingleCrystalTestDriver):
         # Run single Lammps simulation.
         log_filename, restart_filename, average_position_filename, average_cell_filename = run_lammps(
             self.kim_model_name, temperature_K, pressure_bar, timestep_ps, number_sampling_timesteps, species,
-            msd_threshold_angstrom_squared_per_hundred_timesteps, lammps_command=lammps_command,
-            random_seed=random_seed)
+            msd_threshold_angstrom_squared_per_sampling_timesteps, number_msd_timesteps,
+            lammps_command=lammps_command, random_seed=random_seed)
 
         # Check that crystal did not melt or vaporize.
         with open(log_filename, "r") as f:
